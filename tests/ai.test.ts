@@ -3,7 +3,7 @@ import { parseAIOutput, AIAnalysisError } from '@/lib/ai/analyze'
 import { MAX_OPPORTUNITIES } from '@/lib/config/limits'
 import { makeValidAIResult } from './fixtures'
 
-describe('parseAIOutput', () => {
+describe('parseAIOutput (módulo de IA dormente, preparado para reativação futura)', () => {
   it('aceita um JSON válido que segue o schema', () => {
     const result = parseAIOutput(JSON.stringify(makeValidAIResult()))
     expect(result.executiveSummary).toBeTruthy()
@@ -21,8 +21,8 @@ describe('parseAIOutput', () => {
     expect(() => parseAIOutput(JSON.stringify(broken))).toThrow(AIAnalysisError)
   })
 
-  it('rejeita quando o enum de prioridade é inválido', () => {
-    const broken = makeValidAIResult({ priority: 'URGENTE' })
+  it('rejeita quando o enum de prioridade/confiança é inválido', () => {
+    const broken = makeValidAIResult({ confidence: 'URGENTE' })
     expect(() => parseAIOutput(JSON.stringify(broken))).toThrow(AIAnalysisError)
   })
 
@@ -35,6 +35,7 @@ describe('parseAIOutput', () => {
     const base = makeValidAIResult()
     const extraOpportunities = Array.from({ length: MAX_OPPORTUNITIES + 3 }, (_, index) => ({
       ...base.opportunities[0],
+      id: `op-${index}`,
       title: `Oportunidade ${index}`,
     }))
     const withTooMany = { ...base, opportunities: extraOpportunities }
@@ -45,7 +46,13 @@ describe('parseAIOutput', () => {
 
   it('rejeita quando a maturidade não é um dos níveis esperados', () => {
     const broken = makeValidAIResult()
-    broken.maturity.level = 'Nível Desconhecido'
+    broken.companyMaturity.level = 'Nível Desconhecido'
+    expect(() => parseAIOutput(JSON.stringify(broken))).toThrow(AIAnalysisError)
+  })
+
+  it('rejeita quando top3 referencia uma oportunidade inexistente', () => {
+    const broken = makeValidAIResult()
+    broken.top3 = ['op-inexistente']
     expect(() => parseAIOutput(JSON.stringify(broken))).toThrow(AIAnalysisError)
   })
 })

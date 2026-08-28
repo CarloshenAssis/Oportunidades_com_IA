@@ -1,7 +1,11 @@
-const STEP_LABELS = ['Empresa', 'Operação', 'Problemas', 'Tecnologia', 'Contato']
+type Props = {
+  label: string
+  step: number
+  totalSteps: number
+}
 
-export function ProgressBar({ step, totalSteps }: { step: number; totalSteps: number }) {
-  const percentage = (step / totalSteps) * 100
+export function ProgressBar({ label, step, totalSteps }: Props) {
+  const percentage = totalSteps > 0 ? Math.min(100, (step / totalSteps) * 100) : 0
 
   return (
     <div>
@@ -9,14 +13,14 @@ export function ProgressBar({ step, totalSteps }: { step: number; totalSteps: nu
         <span className="font-semibold text-primary">
           Etapa {step} de {totalSteps}
         </span>
-        <span className="text-muted">{STEP_LABELS[step - 1]}</span>
+        <span className="text-muted">{label}</span>
       </div>
       <div
         role="progressbar"
         aria-valuenow={step}
         aria-valuemin={1}
         aria-valuemax={totalSteps}
-        aria-label={`Etapa ${step} de ${totalSteps}: ${STEP_LABELS[step - 1]}`}
+        aria-label={`Etapa ${step} de ${totalSteps}: ${label}`}
         className="h-2 w-full overflow-hidden rounded-full bg-surface"
       >
         <div

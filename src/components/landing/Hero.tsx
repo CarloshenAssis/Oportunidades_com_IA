@@ -25,7 +25,7 @@ export function Hero() {
           <ArrowRight className="h-5 w-5" aria-hidden="true" />
         </LinkButton>
 
-        <p className="text-sm text-muted">Leva menos de 5 minutos. Sem cadastro.</p>
+        <p className="text-sm text-muted">Leva de 8 a 15 minutos. Sem cadastro.</p>
       </Container>
     </section>
   )

@@ -25,7 +25,7 @@ export function isValidPhoneDigits(digits: string): boolean {
 }
 
 export const WHATSAPP_MESSAGE =
-  'Olá! Acabei de fazer o Diagnóstico de Oportunidades com IA e gostaria de entender melhor as oportunidades identificadas na minha empresa.'
+  'Olá! Acabei de preencher o Diagnóstico de Oportunidades com IA e gostaria de conversar sobre a minha empresa.'
 
 /** Gera um link wa.me com a mensagem pré-preenchida do diagnóstico. */
 export function buildWhatsAppUrl(rawPhone: string): string {

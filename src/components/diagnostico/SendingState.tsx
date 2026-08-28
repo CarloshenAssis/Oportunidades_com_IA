@@ -3,34 +3,23 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
 
-const STAGES = [
-  'Organizando informações',
-  'Identificando processos',
-  'Analisando oportunidades',
-  'Priorizando recomendações',
-]
+const STAGES = ['Organizando respostas', 'Preparando envio', 'Enviando diagnóstico']
 
-const STAGE_DELAYS_MS = [900, 1800, 2800]
+const STAGE_DELAYS_MS = [700, 1400]
 
-export function LoadingAnalysis() {
+export function SendingState() {
   const [activeStage, setActiveStage] = useState(0)
 
   useEffect(() => {
-    const timers = STAGE_DELAYS_MS.map((delay, index) =>
-      setTimeout(() => setActiveStage(index + 1), delay),
-    )
+    const timers = STAGE_DELAYS_MS.map((delay, index) => setTimeout(() => setActiveStage(index + 1), delay))
     return () => timers.forEach(clearTimeout)
   }, [])
 
   return (
-    <div
-      className="flex flex-col items-center gap-8 py-16 text-center"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="flex flex-col items-center gap-8 py-16 text-center" role="status" aria-live="polite">
       <Loader2 className="h-10 w-10 animate-spin text-accent" aria-hidden="true" />
       <div>
-        <h2 className="text-xl font-semibold text-primary">Analisando os processos da sua empresa...</h2>
+        <h2 className="text-xl font-semibold text-primary">Enviando seu diagnóstico...</h2>
         <p className="mt-2 text-muted">Isso leva apenas alguns instantes.</p>
       </div>
       <ul className="flex w-full max-w-sm flex-col gap-3 text-left">

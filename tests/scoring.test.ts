@@ -1,109 +1,117 @@
 import { describe, expect, it } from 'vitest'
-import { computeIndicatorScores, computeOpportunityScore, computeScoring, getPriorityLabel } from '@/lib/scoring/scoring'
-import { makeValidRequest } from './fixtures'
+import {
+  computeTotalScore,
+  extractCandidateTasksFromArea,
+  getTaskPriorityLabel,
+  pickTaskForQuantitativeSizing,
+} from '@/lib/diagnostic/scoring'
+import { createEmptyAreaInterview } from '@/lib/validation/diagnostic'
+import { makeValidAreaInterview } from './fixtures'
 
-describe('scoring', () => {
-  it('produz um score baixo quando os sinais textuais são mínimos', () => {
-    const request = makeValidRequest({
-      operation: { mainActivities: 'ok', repetitiveTasks: 'ok', timeConsumingTasks: 'ok' },
-      problems: {
-        rework: 'ok',
-        manualProcesses: 'ok',
-        errors: 'ok',
-        peopleDependency: 'Não sei',
-      },
-      technology: { tools: ['WhatsApp'], aiMaturity: 'Não sei' },
-      company: { companyName: 'Empresa', segment: 'Serviços', employeeRange: '1–5' },
+describe('computeTotalScore', () => {
+  it('nunca ultrapassa a escala de 0 a 25', () => {
+    const total = computeTotalScore({
+      frequencyScore: 5,
+      timeScore: 5,
+      repetitionScore: 5,
+      standardizationScore: 5,
+      impactScore: 5,
     })
-
-    const { opportunityScore } = computeScoring(request)
-    expect(opportunityScore).toBeGreaterThanOrEqual(0)
-    expect(opportunityScore).toBeLessThan(40)
-    expect(getPriorityLabel(opportunityScore)).toBe('Muito baixa prioridade')
+    expect(total).toBe(25)
   })
 
-  it('produz um score alto quando há muitos sinais explícitos de frequência, volume e manualidade', () => {
-    const request = makeValidRequest({
-      company: { companyName: 'Empresa', segment: 'Serviços', employeeRange: 'Mais de 100' },
-      operation: {
-        mainActivities: 'Atendemos clientes diariamente, com grande quantidade de mensagens.',
-        repetitiveTasks:
-          'Todos os dias fazemos as mesmas tarefas repetitivas, sempre igual, toda semana também.',
-        timeConsumingTasks: 'Muitos processos manuais consomem tempo, com centenas de solicitações.',
-      },
-      problems: {
-        rework: 'Há muito retrabalho, sempre precisamos refazer e revisar novamente.',
-        manualProcesses: 'Preenchemos planilhas manualmente, digitamos tudo no papel, copiar e colar direto.',
-        errors: 'Erros e esquecimentos são comuns, gerando atrasos e falhas constantes.',
-        peopleDependency: 'Sim',
-        peopleDependencyDescription: 'Depende do gerente.',
-      },
-      technology: { tools: ['Excel', 'Google Sheets', 'WhatsApp', 'E-mail'], aiMaturity: 'Não utilizamos' },
+  it('produz 0 quando todos os componentes disponíveis são 0', () => {
+    const total = computeTotalScore({
+      frequencyScore: 0,
+      timeScore: 0,
+      repetitionScore: 0,
+      standardizationScore: null,
+      impactScore: null,
     })
-
-    const { opportunityScore } = computeScoring(request)
-    expect(opportunityScore).toBeGreaterThan(60)
+    expect(total).toBe(0)
   })
 
-  it('retorna null para indicadores quando não há informação suficiente', () => {
-    const request = makeValidRequest({
-      operation: { mainActivities: 'ok', repetitiveTasks: 'ok', timeConsumingTasks: 'ok' },
-      problems: {
-        rework: 'ok',
-        manualProcesses: 'ok',
-        errors: 'ok',
-        peopleDependency: 'Não sei',
-      },
+  it('retorna null (score incompleto) quando há menos de 3 componentes disponíveis', () => {
+    const total = computeTotalScore({
+      frequencyScore: 5,
+      timeScore: 5,
+      repetitionScore: null,
+      standardizationScore: null,
+      impactScore: null,
     })
-
-    const indicators = computeIndicatorScores(request)
-    expect(indicators.repetitiveness).toBeNull()
-    expect(indicators.rework).toBeNull()
+    expect(total).toBeNull()
   })
 
-  it('nunca gera indicadores fora da faixa de 0 a 5', () => {
-    const request = makeValidRequest()
-    const indicators = computeIndicatorScores(request)
-    for (const value of Object.values(indicators)) {
-      if (value !== null) {
-        expect(value).toBeGreaterThanOrEqual(0)
-        expect(value).toBeLessThanOrEqual(5)
-      }
-    }
-  })
-
-  it('computeOpportunityScore retorna 0 quando todos os indicadores são null', () => {
-    const score = computeOpportunityScore({
-      frequency: null,
-      volume: null,
-      repetitiveness: null,
-      manualWork: null,
-      rework: null,
-      errorRisk: null,
-      standardization: null,
-      implementationEase: null,
+  it('retorna null quando não há nenhum dado (dados ausentes)', () => {
+    const total = computeTotalScore({
+      frequencyScore: null,
+      timeScore: null,
+      repetitionScore: null,
+      standardizationScore: null,
+      impactScore: null,
     })
-    expect(score).toBe(0)
+    expect(total).toBeNull()
+  })
+})
+
+describe('getTaskPriorityLabel', () => {
+  it('classifica scores altos como "Forte candidata"', () => {
+    expect(getTaskPriorityLabel(22)).toBe('Forte candidata')
   })
 
-  it('computeOpportunityScore retorna 100 quando todos os indicadores são máximos', () => {
-    const score = computeOpportunityScore({
-      frequency: 5,
-      volume: 5,
-      repetitiveness: 5,
-      manualWork: 5,
-      rework: 5,
-      errorRisk: 5,
-      standardization: 5,
-      implementationEase: 5,
+  it('classifica scores médios como "Candidata promissora"', () => {
+    expect(getTaskPriorityLabel(16)).toBe('Candidata promissora')
+  })
+
+  it('classifica scores baixos como "Menor prioridade"', () => {
+    expect(getTaskPriorityLabel(5)).toBe('Menor prioridade')
+  })
+
+  it('retorna "Prioridade indefinida" quando o score é null', () => {
+    expect(getTaskPriorityLabel(null)).toBe('Prioridade indefinida')
+  })
+})
+
+describe('extractCandidateTasksFromArea', () => {
+  it('identifica tarefas candidatas a partir de respostas preenchidas', () => {
+    const interview = makeValidAreaInterview()
+    const tasks = extractCandidateTasksFromArea(interview)
+    expect(tasks.length).toBeGreaterThan(0)
+    expect(tasks.every((task) => task.taskText.length > 0)).toBe(true)
+  })
+
+  it('não gera tarefas candidatas quando a área está totalmente em branco', () => {
+    const interview = createEmptyAreaInterview('Financeiro')
+    const tasks = extractCandidateTasksFromArea(interview)
+    expect(tasks).toHaveLength(0)
+  })
+
+  it('ignora respostas negativas explícitas como "não temos"', () => {
+    const interview = makeValidAreaInterview({
+      reworkProcess: 'não temos',
+      errorProneTasks: 'Não',
     })
-    expect(score).toBe(100)
+    const tasks = extractCandidateTasksFromArea(interview)
+    expect(tasks.find((task) => task.sourceField === 'reworkProcess')).toBeUndefined()
+    expect(tasks.find((task) => task.sourceField === 'errorProneTasks')).toBeUndefined()
   })
 
-  it('classifica scores altos como alta prioridade', () => {
-    expect(getPriorityLabel(85)).toBe('Alta prioridade')
-    expect(getPriorityLabel(65)).toBe('Média prioridade')
-    expect(getPriorityLabel(45)).toBe('Baixa prioridade')
-    expect(getPriorityLabel(10)).toBe('Muito baixa prioridade')
+  it('deriva score de frequência alto para tarefas diárias', () => {
+    const interview = makeValidAreaInterview()
+    const daily = extractCandidateTasksFromArea(interview).find((task) => task.sourceField === 'dailyRepetitiveTasks')
+    expect(daily?.scores.frequencyScore).toBe(5)
+  })
+})
+
+describe('pickTaskForQuantitativeSizing', () => {
+  it('prioriza tarefas de transferência de informação (copiar/colar) quando disponíveis', () => {
+    const interview = makeValidAreaInterview()
+    const tasks = extractCandidateTasksFromArea(interview)
+    const picked = pickTaskForQuantitativeSizing(tasks)
+    expect(picked?.sourceField).toBe('copyPasteTasks')
+  })
+
+  it('retorna null quando não há tarefas candidatas', () => {
+    expect(pickTaskForQuantitativeSizing([])).toBeNull()
   })
 })

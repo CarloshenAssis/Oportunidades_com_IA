@@ -1,7 +1,6 @@
 import { getOpenAIClient, getOpenAIModel } from '@/lib/ai/openai'
 import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/ai/prompt'
 import { AI_OUTPUT_JSON_SCHEMA, diagnosticResultSchema, type DiagnosticResult } from '@/lib/ai/schema'
-import { computeScoring } from '@/lib/scoring/scoring'
 import type { DiagnosticRequest } from '@/types/diagnostic'
 import { AI_TIMEOUT_MS, MAX_OPPORTUNITIES, MAX_OUTPUT_TOKENS } from '@/lib/config/limits'
 
@@ -49,7 +48,6 @@ export function parseAIOutput(raw: string): DiagnosticResult {
 }
 
 export async function analyzeDiagnostic(request: DiagnosticRequest): Promise<DiagnosticResult> {
-  const scoring = computeScoring(request)
   const client = getOpenAIClient()
   const model = getOpenAIModel()
 
@@ -59,7 +57,7 @@ export async function analyzeDiagnostic(request: DiagnosticRequest): Promise<Dia
       {
         model,
         instructions: SYSTEM_PROMPT,
-        input: buildUserPrompt(request, scoring),
+        input: buildUserPrompt(request),
         max_output_tokens: MAX_OUTPUT_TOKENS,
         text: {
           format: {

@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import { Header } from '@/components/landing/Header'
-import { DiagnosticWizard } from '@/components/diagnostico/DiagnosticWizard'
+import { InterviewWizard } from '@/components/diagnostico/InterviewWizard'
 
 export const metadata: Metadata = {
   title: 'Diagnóstico de Oportunidades com IA',
-  description: 'Responda 5 etapas rápidas sobre a sua empresa e descubra onde a IA pode ajudar.',
+  description: 'Uma entrevista guiada sobre a sua empresa para descobrir onde a IA pode ajudar.',
 }
 
 export default function DiagnosticoPage() {
@@ -12,7 +12,7 @@ export default function DiagnosticoPage() {
     <>
       <Header />
       <main className="flex-1 bg-white">
-        <DiagnosticWizard />
+        <InterviewWizard />
       </main>
     </>
   )

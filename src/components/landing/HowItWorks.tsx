@@ -3,18 +3,18 @@ import { Container } from '@/components/ui/Container'
 const STEPS = [
   {
     number: '01',
-    title: 'Responda o diagnóstico',
-    description: 'Cinco etapas rápidas sobre a operação, os problemas e as ferramentas da sua empresa.',
+    title: 'Responda ao diagnóstico',
+    description: 'Uma entrevista guiada sobre as áreas, processos e tarefas da sua empresa.',
   },
   {
     number: '02',
-    title: 'Receba a análise',
-    description: 'A IA cruza suas respostas e aponta gargalos e oportunidades reais, com evidências.',
+    title: 'Um especialista analisa',
+    description: 'Suas respostas são analisadas individualmente para identificar oportunidades reais.',
   },
   {
     number: '03',
     title: 'Fale com um especialista',
-    description: 'Use o relatório como ponto de partida para uma conversa sobre implementação.',
+    description: 'Entraremos em contato para conversar sobre as oportunidades identificadas.',
   },
 ]
 

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { diagnosticRequestSchema } from '@/lib/validation/diagnostic'
-import { analyzeDiagnostic } from '@/lib/ai/analyze'
+import { buildDiagnosticEmail } from '@/lib/email/template'
+import { sendDiagnosticEmail } from '@/lib/email/send'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { MAX_REQUEST_BYTES } from '@/lib/config/limits'
 
 export const runtime = 'nodejs'
 
 const GENERIC_ERROR_MESSAGE =
-  'Não conseguimos gerar seu diagnóstico agora. Tente novamente em alguns instantes.'
+  'Não conseguimos enviar seu diagnóstico. Suas respostas foram preservadas nesta página. Tente novamente.'
 
 function getClientKey(request: NextRequest): string {
   const forwardedFor = request.headers.get('x-forwarded-for')
@@ -53,10 +54,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await analyzeDiagnostic(parsed.data)
-    return NextResponse.json({ result })
+    const { subject, text } = buildDiagnosticEmail(parsed.data)
+    await sendDiagnosticEmail(subject, text)
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('[api/diagnostico] falha ao gerar diagnóstico:', error instanceof Error ? error.message : 'erro desconhecido')
+    console.error('[api/diagnostico] falha ao enviar e-mail:', error instanceof Error ? error.message : 'erro desconhecido')
     return NextResponse.json({ error: GENERIC_ERROR_MESSAGE }, { status: 502 })
   }
 }

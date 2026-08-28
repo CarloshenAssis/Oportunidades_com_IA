@@ -10,8 +10,8 @@ export function CTASection() {
           Pronto para descobrir onde a IA pode ajudar sua empresa?
         </h2>
         <p className="max-w-xl text-slate-300">
-          O diagnóstico é gratuito, leva poucos minutos e já traz uma primeira lista priorizada de
-          oportunidades.
+          O diagnóstico é gratuito. Suas respostas são analisadas individualmente e entraremos em
+          contato com as oportunidades identificadas.
         </p>
         <LinkButton href="/diagnostico" variant="primary" className="text-lg">
           Fazer meu diagnóstico

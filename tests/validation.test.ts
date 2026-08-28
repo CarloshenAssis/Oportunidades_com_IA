@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { diagnosticRequestSchema } from '@/lib/validation/diagnostic'
 import { FIELD_LIMITS } from '@/lib/config/limits'
-import { makeValidRequest } from './fixtures'
+import { MAX_PRIORITY_AREAS } from '@/types/diagnostic'
+import { makeValidAreaInterview, makeValidRequest } from './fixtures'
 
 describe('diagnosticRequestSchema', () => {
   it('aceita um formulário válido', () => {
@@ -9,8 +10,10 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejeita quando faltam campos obrigatórios', () => {
-    const invalid = makeValidRequest({ company: { companyName: '', segment: 'Alimentação', employeeRange: '6–10' } })
+  it('rejeita quando faltam campos obrigatórios da empresa', () => {
+    const invalid = makeValidRequest({
+      company: { companyName: '', segment: 'Alimentação', employeeRange: '6–10', mainBusinessActivity: 'x' },
+    })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })
@@ -43,9 +46,16 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejeita quando falta o nome do responsável', () => {
+    const invalid = makeValidRequest()
+    invalid.contact.responsibleName = ''
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
   it('rejeita campo de texto acima do limite máximo', () => {
     const invalid = makeValidRequest()
-    invalid.operation.mainActivities = 'a'.repeat(FIELD_LIMITS.mainActivities + 1)
+    invalid.interviews[0].dailyRepetitiveTasks = 'a'.repeat(FIELD_LIMITS.longAnswer + 1)
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })
@@ -57,26 +67,69 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('exige a descrição da dependência quando peopleDependency é "Sim"', () => {
-    const invalid = makeValidRequest()
-    invalid.problems.peopleDependency = 'Sim'
-    delete invalid.problems.peopleDependencyDescription
+  it('aceita blocos A–K em branco (não obriga a inventar tarefas)', () => {
+    const valid = makeValidRequest({
+      interviews: [
+        makeValidAreaInterview({
+          dailyRepetitiveTasks: '',
+          weeklyRepetitiveTasks: '',
+          monthlyRepetitiveTasks: '',
+          mostTimeConsumingTask: '',
+          taskTheyWouldEliminate: '',
+          copyPasteTasks: '',
+          documentTasks: '',
+          keyPersonDependency: 'Não',
+          dependencyDescription: '',
+        }),
+      ],
+    })
+    const result = diagnosticRequestSchema.safeParse(valid)
+    expect(result.success).toBe(true)
+  })
+
+  it('exige a descrição da dependência quando keyPersonDependency é "Sim"', () => {
+    const invalid = makeValidRequest({
+      interviews: [makeValidAreaInterview({ keyPersonDependency: 'Sim', dependencyDescription: '' })],
+    })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })
 
   it('exige a descrição do segmento quando segment é "Outro"', () => {
     const invalid = makeValidRequest({
-      company: { companyName: 'Empresa X', segment: 'Outro', employeeRange: '1–5' },
+      company: { companyName: 'Empresa X', segment: 'Outro', employeeRange: '1–5', mainBusinessActivity: 'x' },
     })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })
 
-  it('rejeita segmento fora da lista de opções permitidas', () => {
-    const invalid = makeValidRequest()
-    // @ts-expect-error testando enum inválido de propósito
-    invalid.company.segment = 'Segmento Inexistente'
+  it('rejeita mais de MAX_PRIORITY_AREAS áreas prioritárias', () => {
+    const invalid = makeValidRequest({
+      areas: ['Financeiro', 'Comercial', 'Atendimento', 'Operações'],
+      priorityAreas: [
+        { area: 'Financeiro', reason: 'x' },
+        { area: 'Comercial', reason: 'x' },
+        { area: 'Atendimento', reason: 'x' },
+        { area: 'Operações', reason: 'x' },
+      ],
+    })
+    expect(invalid.priorityAreas.length).toBeGreaterThan(MAX_PRIORITY_AREAS)
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita área prioritária que não está entre as áreas selecionadas', () => {
+    const invalid = makeValidRequest({
+      areas: ['Financeiro'],
+      priorityAreas: [{ area: 'Comercial', reason: 'x' }],
+      interviews: [makeValidAreaInterview({ area: 'Comercial' })],
+    })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita quando o número de entrevistas não bate com as áreas prioritárias', () => {
+    const invalid = makeValidRequest({ interviews: [] })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })

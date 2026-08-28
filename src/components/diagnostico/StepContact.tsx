@@ -1,16 +1,40 @@
 import { FIELD_LIMITS } from '@/lib/config/limits'
 import { Field, TextInput, FieldError } from '@/components/ui/FormControls'
-import type { StepProps } from './types'
+import type { ContactData } from '@/types/diagnostic'
 
-export function StepContact({ data, errors, onChange }: StepProps) {
+type Props = {
+  data: ContactData
+  errors: Record<string, string>
+  onChange: <K extends keyof ContactData>(field: K, value: ContactData[K]) => void
+}
+
+export function StepContact({ data, errors, onChange }: Props) {
   return (
     <div className="flex flex-col gap-6">
+      <Field
+        id="responsibleName"
+        label="Nome do responsável"
+        required
+        error={errors['responsibleName']}
+        maxLength={FIELD_LIMITS.responsibleName}
+        value={data.responsibleName}
+      >
+        <TextInput
+          id="responsibleName"
+          value={data.responsibleName}
+          maxLength={FIELD_LIMITS.responsibleName}
+          onChange={(e) => onChange('responsibleName', e.target.value)}
+          error={errors['responsibleName']}
+          placeholder="Seu nome"
+        />
+      </Field>
+
       <Field
         id="whatsapp"
         label="WhatsApp"
         required
         error={errors['whatsapp']}
-        hint="Usaremos apenas para gerar o link de contato ao final do diagnóstico."
+        hint="Usaremos para entrar em contato depois de analisar seu diagnóstico."
       >
         <TextInput
           id="whatsapp"
@@ -49,7 +73,7 @@ export function StepContact({ data, errors, onChange }: StepProps) {
             aria-describedby={errors['consent'] ? 'consent-error' : undefined}
             aria-invalid={!!errors['consent']}
           />
-          Concordo em receber o diagnóstico e informações relacionadas à análise solicitada.
+          Concordo em enviar essas informações para análise e em ser contatado(a) sobre o diagnóstico.
         </label>
         <FieldError id="consent-error" message={errors['consent']} />
       </div>

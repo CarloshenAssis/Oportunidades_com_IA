@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { AIAnalysisError } from '@/lib/ai/analyze'
-import { makeValidRequest, makeValidAIResult } from './fixtures'
+import { EmailSendError } from '@/lib/email/send'
+import { makeValidRequest } from './fixtures'
 
-const { analyzeDiagnosticMock } = vi.hoisted(() => ({ analyzeDiagnosticMock: vi.fn() }))
+const { sendDiagnosticEmailMock } = vi.hoisted(() => ({ sendDiagnosticEmailMock: vi.fn() }))
 
-vi.mock('@/lib/ai/analyze', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/ai/analyze')>('@/lib/ai/analyze')
-  return { ...actual, analyzeDiagnostic: analyzeDiagnosticMock }
+vi.mock('@/lib/email/send', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/email/send')>('@/lib/email/send')
+  return { ...actual, sendDiagnosticEmail: sendDiagnosticEmailMock }
 })
 
 const { POST } = await import('@/app/api/diagnostico/route')
@@ -18,37 +18,44 @@ function request(body: unknown, rawBody?: string) {
   ipCounter += 1
   return new NextRequest('http://localhost/api/diagnostico', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${ipCounter}` },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.1.${ipCounter}` },
     body: rawBody ?? JSON.stringify(body),
   })
 }
 
 beforeEach(() => {
-  analyzeDiagnosticMock.mockReset()
+  sendDiagnosticEmailMock.mockReset()
 })
 
 describe('POST /api/diagnostico', () => {
-  it('retorna 200 e o resultado para um payload válido', async () => {
-    analyzeDiagnosticMock.mockResolvedValueOnce(makeValidAIResult())
+  it('retorna 200 e envia o e-mail para um payload válido', async () => {
+    sendDiagnosticEmailMock.mockResolvedValueOnce(undefined)
 
     const response = await POST(request(makeValidRequest()))
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json.result).toBeDefined()
-    expect(json.result.opportunities).toHaveLength(1)
-    expect(analyzeDiagnosticMock).toHaveBeenCalledOnce()
+    expect(json.success).toBe(true)
+    expect(sendDiagnosticEmailMock).toHaveBeenCalledOnce()
   })
 
-  it('nunca inclui a chave da OpenAI na resposta', async () => {
-    analyzeDiagnosticMock.mockResolvedValueOnce(makeValidAIResult())
+  it('envia o assunto com o nome da empresa e o corpo com as respostas', async () => {
+    sendDiagnosticEmailMock.mockResolvedValueOnce(undefined)
+    await POST(request(makeValidRequest()))
+
+    const [subject, body] = sendDiagnosticEmailMock.mock.calls[0]
+    expect(subject).toContain('Padaria Bom Pão')
+    expect(body).toContain('CONTATO')
+  })
+
+  it('nunca inclui credenciais de e-mail na resposta', async () => {
+    sendDiagnosticEmailMock.mockResolvedValueOnce(undefined)
     const response = await POST(request(makeValidRequest()))
     const text = await response.text()
-    expect(text).not.toContain('OPENAI_API_KEY')
-    expect(text).not.toContain('sk-')
+    expect(text).not.toMatch(/SMTP_PASSWORD|SMTP_USER/)
   })
 
-  it('retorna 400 para um payload inválido e não chama a IA', async () => {
+  it('retorna 400 para um payload inválido e não envia e-mail', async () => {
     const invalid = makeValidRequest()
     invalid.contact.whatsapp = '123'
 
@@ -57,7 +64,7 @@ describe('POST /api/diagnostico', () => {
 
     expect(response.status).toBe(400)
     expect(json.error).toBeDefined()
-    expect(analyzeDiagnosticMock).not.toHaveBeenCalled()
+    expect(sendDiagnosticEmailMock).not.toHaveBeenCalled()
   })
 
   it('retorna 400 para um corpo que não é JSON válido', async () => {
@@ -65,24 +72,23 @@ describe('POST /api/diagnostico', () => {
     expect(response.status).toBe(400)
   })
 
-  it('retorna 502 com mensagem genérica quando a IA falha', async () => {
-    analyzeDiagnosticMock.mockRejectedValueOnce(new AIAnalysisError('Falha ao chamar a API da OpenAI.'))
+  it('retorna 502 com mensagem que preserva as respostas quando o envio de e-mail falha', async () => {
+    sendDiagnosticEmailMock.mockRejectedValueOnce(new EmailSendError('Falha ao enviar o e-mail do diagnóstico.'))
 
     const response = await POST(request(makeValidRequest()))
     const json = await response.json()
 
     expect(response.status).toBe(502)
-    expect(json.error).toMatch(/não conseguimos gerar seu diagnóstico/i)
+    expect(json.error).toMatch(/suas respostas foram preservadas/i)
   })
 
-  it('retorna 502 com mensagem genérica em caso de timeout/erro inesperado', async () => {
-    analyzeDiagnosticMock.mockRejectedValueOnce(new Error('timeout of 30000ms exceeded'))
+  it('retorna 502 genérico em caso de erro inesperado, sem vazar detalhes técnicos', async () => {
+    sendDiagnosticEmailMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED smtp.example.com:587'))
 
     const response = await POST(request(makeValidRequest()))
     const json = await response.json()
 
     expect(response.status).toBe(502)
-    expect(json.error).toMatch(/não conseguimos gerar seu diagnóstico/i)
-    expect(json.error).not.toMatch(/timeout/i)
+    expect(json.error).not.toMatch(/ECONNREFUSED|smtp\.example\.com/)
   })
 })
