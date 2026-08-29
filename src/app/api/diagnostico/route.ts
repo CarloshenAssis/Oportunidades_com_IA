@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { diagnosticRequestSchema } from '@/lib/validation/diagnostic'
 import { buildDiagnosticEmail } from '@/lib/email/template'
-import { sendDiagnosticEmail } from '@/lib/email/send'
+import { EmailConfigError, SmtpAuthError, SmtpConnectionError, sendDiagnosticEmail } from '@/lib/email/send'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { MAX_REQUEST_BYTES } from '@/lib/config/limits'
 
@@ -58,7 +58,20 @@ export async function POST(request: NextRequest) {
     await sendDiagnosticEmail(subject, text)
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('[api/diagnostico] falha ao enviar e-mail:', error instanceof Error ? error.message : 'erro desconhecido')
+    // A categoria (config/conexão/autenticação/envio) só é usada para o log do servidor —
+    // o cliente sempre recebe a mesma mensagem genérica, sem detalhes técnicos ou credenciais.
+    const category =
+      error instanceof EmailConfigError
+        ? 'configuração'
+        : error instanceof SmtpConnectionError
+          ? 'conexão SMTP'
+          : error instanceof SmtpAuthError
+            ? 'autenticação SMTP'
+            : 'envio'
+    console.error(
+      `[api/diagnostico] falha ao enviar e-mail (categoria: ${category}):`,
+      error instanceof Error ? error.message : 'erro desconhecido',
+    )
     return NextResponse.json({ error: GENERIC_ERROR_MESSAGE }, { status: 502 })
   }
 }

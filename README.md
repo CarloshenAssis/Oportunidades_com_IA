@@ -59,9 +59,35 @@ DIAGNOSTIC_OWNER_EMAIL=voce@suaempresa.com
 
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`: credenciais de
   qualquer provedor SMTP (Gmail, Outlook, SendGrid, Amazon SES etc. — não
-  depende de um serviço específico).
+  depende de um serviço específico). As cinco variáveis desta seção (as
+  quatro acima + `DIAGNOSTIC_OWNER_EMAIL`) são **obrigatórias**: se qualquer
+  uma faltar, o endpoint nunca tenta enviar com configuração parcial — ele
+  falha de forma controlada e registra no servidor exatamente qual variável
+  está ausente (ver `src/lib/email/send.ts`).
 - `DIAGNOSTIC_OWNER_EMAIL`: endereço que recebe cada diagnóstico preenchido.
   Nunca fica hardcoded no código.
+
+#### Usando o Gmail como servidor SMTP
+
+O Gmail não aceita mais a senha normal da conta para SMTP. É preciso:
+
+1. Ativar a **verificação em duas etapas** na conta Google.
+2. Gerar uma **senha de app** em <https://myaccount.google.com/apppasswords>
+   (categoria "Outro", ex.: "Diagnóstico IA") — é uma senha de 16 caracteres,
+   diferente da senha normal de login.
+3. Configurar:
+   ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=seu_email@gmail.com
+   SMTP_PASSWORD=<a senha de app de 16 caracteres, sem espaços>
+   SMTP_SECURE=false
+   DIAGNOSTIC_OWNER_EMAIL=carloshen.senai@gmail.com
+   ```
+   Porta `587` usa STARTTLS (`SMTP_SECURE=false`); porta `465` usa TLS
+   implícito (`SMTP_SECURE=true`, ou simplesmente omita — a porta 465 já
+   ativa `secure` automaticamente). Usar a senha normal da conta em vez da
+   senha de app resulta em erro de autenticação (`EAUTH`) do Gmail.
 
 ### Opcional
 
@@ -166,6 +192,44 @@ src/
   é por instância do processo, um limite realmente global entre múltiplas
   instâncias exigiria um armazenamento externo (ex.: Redis), fora do escopo
   deste projeto.
+
+## Diagnosticando falhas no envio do e-mail
+
+Se o usuário vê "Não conseguimos enviar seu diagnóstico...", a causa real
+nunca aparece na resposta HTTP (de propósito — ver seção acima), mas fica
+registrada nos logs do servidor (`console.log`/`console.error`, nunca com
+senha, token ou conteúdo de credencial). `src/lib/email/send.ts` registra
+cada etapa com o prefixo `[EMAIL]`:
+
+```
+[EMAIL] SMTP configuration detected: yes/no
+[EMAIL] Host: <host>
+[EMAIL] Port: <porta>
+[EMAIL] User configured: yes/no
+[EMAIL] Destination configured: yes/no
+[EMAIL] SMTP connection result: ok / failed — <code/command/responseCode>
+[EMAIL] SMTP authentication result: ok / failed — <code/command/responseCode>
+[EMAIL] Send result: ok / failed — <code/command/responseCode>
+```
+
+E `src/app/api/diagnostico/route.ts` registra a categoria do erro
+(`configuração`, `conexão SMTP`, `autenticação SMTP` ou `envio`). Causas
+mais comuns, na ordem em que valem a pena checar:
+
+1. **`SMTP configuration detected: no`** — uma das cinco variáveis
+   obrigatórias (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+   `DIAGNOSTIC_OWNER_EMAIL`) não está definida no ambiente onde o servidor
+   está rodando (ex.: esquecida nas Environment Variables da Vercel). O log
+   diz exatamente qual falta.
+2. **`SMTP authentication result: failed`** (código `EAUTH`) — usuário ou
+   senha rejeitados pelo provedor. No Gmail, isso quase sempre significa que
+   foi usada a senha normal da conta em vez de uma senha de app (veja
+   [Usando o Gmail como servidor SMTP](#usando-o-gmail-como-servidor-smtp)).
+3. **`SMTP connection result: failed`** (códigos como `ECONNECTION`,
+   `ETIMEDOUT`, `ENOTFOUND`) — host/porta incorretos, ou a rede onde o
+   servidor roda bloqueia a porta SMTP de saída.
+4. **`Send result: failed`** — conexão e autenticação OK, mas o próprio
+   envio foi rejeitado (ex.: remetente/destinatário inválido).
 
 ## Reativando a IA no futuro
 

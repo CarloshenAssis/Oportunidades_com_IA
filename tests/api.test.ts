@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { EmailSendError } from '@/lib/email/send'
+import { EmailConfigError, EmailSendError, SmtpAuthError, SmtpConnectionError } from '@/lib/email/send'
 import { makeValidRequest, makeValidQuickRequest } from './fixtures'
 
 const { sendDiagnosticEmailMock, analyzeDiagnosticMock } = vi.hoisted(() => ({
@@ -134,5 +134,22 @@ describe('POST /api/diagnostico', () => {
     await POST(request(makeValidQuickRequest()))
 
     expect(analyzeDiagnosticMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['configuração ausente/incompleta', () => new EmailConfigError('Configuração de e-mail incompleta. Defina: SMTP_HOST.')],
+    ['falha de conexão SMTP', () => new SmtpConnectionError('Falha ao conectar ao servidor SMTP.')],
+    ['falha de autenticação SMTP', () => new SmtpAuthError('Falha de autenticação no servidor SMTP.')],
+    ['falha de envio', () => new EmailSendError('Falha ao enviar o e-mail do diagnóstico.')],
+  ])('retorna sempre a mesma resposta genérica em caso de %s, sem vazar detalhes técnicos', async (_label, makeError) => {
+    sendDiagnosticEmailMock.mockRejectedValueOnce(makeError())
+
+    const response = await POST(request(makeValidRequest()))
+    const text = await response.clone().text()
+    const json = await response.json()
+
+    expect(response.status).toBe(502)
+    expect(json.error).toMatch(/suas respostas foram preservadas/i)
+    expect(text).not.toMatch(/SMTP_HOST|SMTP_PASSWORD|SMTP_USER|EAUTH|ECONNECTION/)
   })
 })
