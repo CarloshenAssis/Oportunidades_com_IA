@@ -45,7 +45,7 @@ describe('POST /api/diagnostico', () => {
 
     const [subject, body] = sendDiagnosticEmailMock.mock.calls[0]
     expect(subject).toContain('Padaria Bom Pão')
-    expect(body).toContain('CONTATO')
+    expect(body).toContain('RESPONSÁVEL')
   })
 
   it('nunca inclui credenciais de e-mail na resposta', async () => {

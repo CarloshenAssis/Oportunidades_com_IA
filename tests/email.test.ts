@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildDiagnosticEmail, buildDiagnosticEmailSubject } from '@/lib/email/template'
-import { makeValidAreaInterview, makeValidRequest } from './fixtures'
+import { makeValidAreaInterview, makeValidComplementaryInterview, makeValidRequest } from './fixtures'
 
 describe('buildDiagnosticEmailSubject', () => {
   it('inclui o nome da empresa no assunto', () => {
@@ -14,10 +14,10 @@ describe('buildDiagnosticEmail', () => {
     const { text } = buildDiagnosticEmail(makeValidRequest())
     expect(text).toContain('NOVO DIAGNÓSTICO DE OPORTUNIDADES COM IA')
     expect(text).toContain('EMPRESA')
-    expect(text).toContain('ÁREAS PRIORITÁRIAS')
-    expect(text).toContain('ÁREA 1 — FINANCEIRO')
+    expect(text).toContain('RESPONSÁVEL')
+    expect(text).toContain('ÁREA PRIORITÁRIA')
     expect(text).toContain('DADOS E SEGURANÇA')
-    expect(text).toContain('CONTATO')
+    expect(text).toContain('FIM DO DIAGNÓSTICO')
   })
 
   it('inclui as respostas da empresa e do contato', () => {
@@ -32,23 +32,38 @@ describe('buildDiagnosticEmail', () => {
       interviews: [makeValidAreaInterview({ weeklyRepetitiveTasks: '', monthlyRepetitiveTasks: '' })],
     })
     const { text } = buildDiagnosticEmail(request)
-    expect(text).toContain('Tarefas semanais:\n(não informado)')
-    expect(text).toContain('Tarefas mensais:\n(não informado)')
+    expect(text).toContain('Tarefas semanais: (não informado)')
+    expect(text).toContain('Tarefas mensais: (não informado)')
   })
 
-  it('inclui uma seção por área, na mesma ordem das entrevistas', () => {
+  it('inclui uma seção por área, na ordem ÁREA PRIORITÁRIA / COMPLEMENTAR 1 / COMPLEMENTAR 2', () => {
     const request = makeValidRequest({
-      areas: ['Financeiro', 'Comercial'],
-      priorityAreas: [
-        { area: 'Financeiro', reason: 'x' },
-        { area: 'Comercial', reason: 'y' },
-      ],
-      interviews: [makeValidAreaInterview({ area: 'Financeiro' }), makeValidAreaInterview({ area: 'Comercial' })],
+      interviews: [makeValidAreaInterview({ area: 'Financeiro' }), makeValidComplementaryInterview('Comercial', 'RAPIDA')],
     })
     const { text } = buildDiagnosticEmail(request)
-    expect(text).toContain('ÁREA 1 — FINANCEIRO')
-    expect(text).toContain('ÁREA 2 — COMERCIAL')
-    expect(text.indexOf('ÁREA 1')).toBeLessThan(text.indexOf('ÁREA 2'))
+    expect(text).toContain('ÁREA PRIORITÁRIA')
+    expect(text).toContain('ÁREA COMPLEMENTAR 1')
+    expect(text.indexOf('ÁREA PRIORITÁRIA')).toBeLessThan(text.indexOf('ÁREA COMPLEMENTAR 1'))
+  })
+
+  it('mostra o rótulo "Nível" com a profundidade de cada área', () => {
+    const request = makeValidRequest({
+      interviews: [makeValidAreaInterview({ area: 'Financeiro' }), makeValidComplementaryInterview('Comercial', 'RAPIDA')],
+    })
+    const { text } = buildDiagnosticEmail(request)
+    expect(text).toContain('Nível: APROFUNDADA')
+    expect(text).toContain('Nível: RÁPIDA')
+  })
+
+  it('não avalia dados e segurança para uma área rápida (bloco O é exclusivo do modo aprofundado)', () => {
+    const request = makeValidRequest({
+      interviews: [makeValidAreaInterview({ area: 'Financeiro' }), makeValidComplementaryInterview('Comercial', 'RAPIDA')],
+    })
+    const { text } = buildDiagnosticEmail(request)
+    const priorityAreaSection = text.split('ÁREA PRIORITÁRIA')[1].split('ÁREA COMPLEMENTAR 1')[0]
+    const complementaryAreaSection = text.split('ÁREA COMPLEMENTAR 1')[1]
+    expect(priorityAreaSection).toContain('DADOS E SEGURANÇA')
+    expect(complementaryAreaSection).not.toContain('DADOS E SEGURANÇA')
   })
 
   it('inclui o dimensionamento quantitativo quando informado', () => {
@@ -56,7 +71,7 @@ describe('buildDiagnosticEmail', () => {
       interviews: [
         makeValidAreaInterview({
           quantitativeSizing: {
-            sourceField: 'copyPasteTasks',
+            sourceField: 'mostTimeConsumingTask',
             taskLabel: 'Lançar notas fiscais',
             peopleCount: 3,
             executionFrequency: 'diariamente',
@@ -68,5 +83,10 @@ describe('buildDiagnosticEmail', () => {
     })
     const { text } = buildDiagnosticEmail(request)
     expect(text).toContain('Horas/mês estimadas: 40')
+  })
+
+  it('informa que nenhuma tarefa foi escolhida para dimensionar quando o campo é opcional e fica vazio', () => {
+    const { text } = buildDiagnosticEmail(makeValidRequest())
+    expect(text).toContain('(nenhuma tarefa foi escolhida para dimensionar)')
   })
 })

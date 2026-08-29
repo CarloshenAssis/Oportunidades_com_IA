@@ -12,14 +12,14 @@ function list(values: string[] | undefined): string {
   return values && values.length > 0 ? values.join(', ') : '(não informado)'
 }
 
-function formatSection(label: string, main: string | undefined, extras: Array<string | ''>): string {
-  const lines = [`${label}:`, value(main), ...extras.filter(Boolean)]
-  return lines.join('\n')
+function section(title: string, lines: Array<string | ''>): string {
+  const body = lines.filter(Boolean)
+  return body.length > 0 ? `${title}\n${body.join('\n')}` : `${title}\n(não informado)`
 }
 
-function formatSizing(interview: AreaInterview): string {
+function formatDimensioning(interview: AreaInterview): string {
   const sizing = interview.quantitativeSizing
-  if (!sizing) return 'Dimensionamento:\n(nenhuma tarefa desta área foi dimensionada)'
+  if (!sizing?.taskLabel) return 'DIMENSIONAMENTO\n(nenhuma tarefa foi escolhida para dimensionar)'
 
   const monthlyHours = computeMonthlyHours({
     peopleCount: sizing.peopleCount,
@@ -28,82 +28,153 @@ function formatSizing(interview: AreaInterview): string {
   })
   const monthlyCost = computeMonthlyCost(monthlyHours, interview.hourlyCost)
 
-  const lines = [
-    'Dimensionamento:',
-    `Tarefa: ${sizing.taskLabel}`,
+  return section('DIMENSIONAMENTO', [
+    `Tarefa escolhida: ${sizing.taskLabel}`,
     `Pessoas envolvidas: ${sizing.peopleCount ?? '(não informado)'}`,
     `Frequência: ${sizing.executionFrequency || '(não informado)'}`,
     `Minutos por execução: ${sizing.minutesPerExecution ?? '(não informado)'}`,
     `Execuções por mês: ${sizing.monthlyExecutions ?? '(não sei / não informado)'}`,
-    sizing.executionVariation ? `Variação entre execuções: ${sizing.executionVariation}` : '',
+    sizing.executionVariation ? `Variação de volume: ${sizing.executionVariation}` : '',
+    sizing.hasSeasonalPeak ? `Pico sazonal: ${sizing.hasSeasonalPeak}${sizing.seasonalPeakDescription ? ` — ${sizing.seasonalPeakDescription}` : ''}` : '',
     `Horas/mês estimadas: ${monthlyHours ?? '(dados insuficientes)'} — estimativa gerencial`,
     interview.hourlyCost ? `Custo/hora informado: ${interview.hourlyCost}` : '',
     monthlyCost !== null ? `Custo mensal estimado: ${monthlyCost} — estimativa gerencial` : '',
-  ]
-  return lines.filter(Boolean).join('\n')
+  ])
 }
 
-function formatAreaBlock(interview: AreaInterview, index: number): string {
+/** Corpo completo de uma área com entrevista aprofundada — blocos A a O (SPEC V3 §15). */
+function formatDeepArea(interview: AreaInterview): string {
   const sections = [
-    formatSection('Tarefas diárias', interview.dailyRepetitiveTasks, []),
-    formatSection('Tarefas semanais', interview.weeklyRepetitiveTasks, []),
-    formatSection('Tarefas mensais', interview.monthlyRepetitiveTasks, []),
-    formatSection('Tarefa que mais consome tempo', interview.mostTimeConsumingTask, [
-      interview.taskPainReason ? `Por que incomoda: ${interview.taskPainReason}` : '',
+    section('ROTINA', [
+      `Tarefas diárias: ${value(interview.dailyRepetitiveTasks)}`,
+      `Tarefas semanais: ${value(interview.weeklyRepetitiveTasks)}`,
+      `Tarefas mensais: ${value(interview.monthlyRepetitiveTasks)}`,
+      `Várias vezes ao dia: ${value(interview.multipleTimesPerDay)}`,
     ]),
-    formatSection('Tarefa que gostaria de eliminar (rotina)', interview.taskTheyWouldEliminate, []),
-    formatSection('Transferência de informações (copiar/colar)', interview.copyPasteTasks, [
-      interview.informationTransfer ? `De onde vem / para onde vai: ${interview.informationTransfer}` : '',
-      interview.transferFrequency ? `Frequência: ${interview.transferFrequency}` : '',
+    section('PRINCIPAL TAREFA', [
+      `Principais tarefas da área: ${value(interview.mainTasks)}`,
+      `Tarefa que mais consome tempo: ${value(interview.mostTimeConsumingTask)}`,
+      `Tarefa a eliminar ou simplificar: ${value(interview.taskToEliminate)}`,
+      interview.eliminationReason ? `Por que: ${interview.eliminationReason}` : '',
     ]),
-    formatSection('Documentos', interview.documentTasks, [
-      interview.documentExtraction ? `O que precisam extrair: ${interview.documentExtraction}` : '',
-      interview.documentDataEntry ? `Precisa digitar/transferir depois: ${interview.documentDataEntry}` : '',
+    section('COMO O PROCESSO FUNCIONA', [
+      `Início: ${value(interview.processStart)}`,
+      `Etapas: ${value(interview.processSteps)}`,
+      `Pessoas: ${value(interview.processPeople)}`,
+      `Trabalho manual: ${value(interview.processManualWork)}`,
+      `Decisões durante o processo: ${value(interview.processDecisions)}`,
+      `Como termina: ${value(interview.processEnd)}`,
+      `Resultado esperado: ${value(interview.processResult)}`,
     ]),
-    formatSection('Escrita repetitiva', interview.repeatedWritingTasks, [
-      interview.writingVariation ? `O que varia de uma vez para outra: ${interview.writingVariation}` : '',
+    section('FERRAMENTAS', [
+      `Ferramentas/sistemas: ${list(interview.tools)}${interview.toolsOther ? ` (${interview.toolsOther})` : ''}`,
+      interview.toolsExchangeInfo ? `Trocam informações entre si: ${interview.toolsExchangeInfo}` : '',
+      interview.toolsExchangeDescription ? `O que é trocado: ${interview.toolsExchangeDescription}` : '',
     ]),
-    formatSection('Pesquisa de informação', interview.informationSearchTasks, [
-      interview.informationSources?.length ? `Fontes: ${list(interview.informationSources)}` : '',
-      interview.informationSearchTime ? `Tempo gasto buscando: ${interview.informationSearchTime}` : '',
+    section('TRANSFERÊNCIA DE INFORMAÇÕES', [
+      `Existe transferência manual: ${value(interview.hasInformationTransfer)}`,
+      interview.informationSource ? `De onde vem: ${interview.informationSource}` : '',
+      interview.informationDestination ? `Para onde vai: ${interview.informationDestination}` : '',
+      interview.informationTransferWho ? `Quem transfere: ${interview.informationTransferWho}` : '',
+      interview.informationTransferFrequency ? `Frequência: ${interview.informationTransferFrequency}` : '',
+      interview.informationTransferManualEntry ? `Digitação manual: ${interview.informationTransferManualEntry}` : '',
+      interview.informationTransferReview ? `Conferência depois: ${interview.informationTransferReview}` : '',
     ]),
-    formatSection('Retrabalho', interview.reworkProcess, [
-      interview.reworkReason?.length ? `Causas: ${list(interview.reworkReason)}` : '',
+    section('DOCUMENTOS', [
+      `Trabalha com muitos documentos: ${value(interview.hasDocuments)}`,
+      interview.documentTypes ? `Tipos: ${interview.documentTypes}` : '',
+      interview.documentArrival ? `Como chegam: ${interview.documentArrival}` : '',
+      interview.someoneReadsDocuments ? `Alguém lê: ${interview.someoneReadsDocuments}` : '',
+      interview.documentExtraction ? `O que é extraído: ${interview.documentExtraction}` : '',
+      interview.documentDataEntryAfter ? `Digitação depois: ${interview.documentDataEntryAfter}` : '',
+      interview.documentReview ? `Conferência: ${interview.documentReview}` : '',
+      interview.documentVolume ? `Volume aproximado: ${interview.documentVolume}` : '',
     ]),
-    formatSection('Erros', interview.errorProneTasks, [
+    section('ESCRITA REPETITIVA', [
+      `Escreve textos repetidos: ${value(interview.hasRepeatedWriting)}`,
+      interview.writingContent ? `O que é escrito: ${interview.writingContent}` : '',
+      interview.writingStandardization ? `Padronização: ${interview.writingStandardization}` : '',
+      interview.writingWho ? `Quem escreve: ${interview.writingWho}` : '',
+      interview.writingFrequency ? `Frequência: ${interview.writingFrequency}` : '',
+    ]),
+    section('PESQUISA', [
+      `Precisa procurar informações: ${value(interview.hasInformationSearch)}`,
+      interview.searchWhat ? `O que é procurado: ${interview.searchWhat}` : '',
+      interview.searchWhere ? `Onde está: ${interview.searchWhere}` : '',
+      interview.searchTime ? `Tempo gasto: ${interview.searchTime}` : '',
+      interview.searchWho ? `Quem procura: ${interview.searchWho}` : '',
+      interview.searchConcentration ? `Concentração: ${interview.searchConcentration}` : '',
+      interview.searchAskOthers ? `Precisa perguntar a outra pessoa: ${interview.searchAskOthers}` : '',
+    ]),
+    section('RETRABALHO', [
+      `Tarefas refeitas: ${value(interview.reworkTasks)}`,
+      interview.reworkCause?.length ? `Causas: ${list(interview.reworkCause)}` : '',
+      interview.reworkCauseOther ? `Outro motivo: ${interview.reworkCauseOther}` : '',
+    ]),
+    section('ERROS', [
+      `Processos com erro: ${value(interview.errorProcesses)}`,
+      interview.errorType ? `Tipo de erro: ${interview.errorType}` : '',
+      interview.errorFrequency ? `Frequência: ${interview.errorFrequency}` : '',
+      interview.errorDiscovery ? `Como são descobertos: ${interview.errorDiscovery}` : '',
       interview.errorConsequence ? `Consequência: ${interview.errorConsequence}` : '',
     ]),
-    formatSection('Conferências manuais', interview.manualReviewTasks, [
-      interview.reviewCriteria ? `O que é conferido: ${interview.reviewCriteria}` : '',
+    section('CONFERÊNCIAS', [
+      `Tarefas com conferência: ${value(interview.reviewTasks)}`,
+      interview.reviewWhat ? `O que é conferido: ${interview.reviewWhat}` : '',
+      interview.reviewWho ? `Quem confere: ${interview.reviewWho}` : '',
     ]),
-    formatSection('Dependência de pessoas', interview.keyPersonDependency, [
-      interview.dependencyDescription ? `Detalhe: ${interview.dependencyDescription}` : '',
+    section('DEPENDÊNCIA DE PESSOAS', [
+      `Depende de uma pessoa específica: ${value(interview.keyPersonDependency)}`,
+      interview.dependencyProcess ? `Processo dependente: ${interview.dependencyProcess}` : '',
+      interview.dependencyDescription ? `O que essa pessoa sabe/faz: ${interview.dependencyDescription}` : '',
     ]),
-    formatSection('Tarefa que eliminaria amanhã', interview.taskToEliminate, [
-      interview.eliminationReason ? `Motivo: ${interview.eliminationReason}` : '',
+    section('TENTATIVAS ANTERIORES', [
+      `Já tentaram resolver: ${value(interview.previousAttempts)}`,
+      interview.previousAttemptsWhat ? `O que tentaram: ${interview.previousAttemptsWhat}` : '',
+      interview.previousAttemptsWhyNotSolved ? `Por que não resolveu: ${interview.previousAttemptsWhyNotSolved}` : '',
     ]),
-    formatSizing(interview),
-    formatSection('Observações', interview.additionalNotes, []),
+    section('IMPACTO', [
+      `Impacto quando dá errado: ${list(interview.impact)}`,
+      interview.impactOther ? `Outro impacto: ${interview.impactOther}` : '',
+    ]),
+    section('RESULTADO FINAL', [`O que precisa estar pronto: ${value(interview.finalResult)}`]),
+    formatDimensioning(interview),
+    interview.risk
+      ? section('DADOS E SEGURANÇA', [
+          `Dados pessoais: ${value(interview.risk.personalData)}`,
+          `Dados financeiros: ${value(interview.risk.financialData)}`,
+          `Dados de clientes: ${value(interview.risk.customerData)}`,
+          `Dados de funcionários: ${value(interview.risk.employeeData)}`,
+          `Informações confidenciais: ${value(interview.risk.confidentialData)}`,
+        ])
+      : 'DADOS E SEGURANÇA\n(não avaliado — entrevista rápida)',
+    section('OBSERVAÇÕES', [value(interview.additionalNotes)]),
   ]
 
-  return `ÁREA ${index + 1} — ${interview.area.toUpperCase()}\n\n${sections.join('\n\n')}`
+  return sections.join('\n\n')
 }
 
-function formatSecuritySection(interviews: AreaInterview[]): string {
-  const rows: Array<[string, keyof AreaInterview['risk']]> = [
-    ['Dados pessoais', 'personalData'],
-    ['Dados financeiros', 'financialData'],
-    ['Dados de clientes', 'customerData'],
-    ['Dados de funcionários', 'employeeData'],
-    ['Informações confidenciais', 'confidentialData'],
-  ]
+/** Corpo compacto de uma área com entrevista rápida — 10 perguntas fixas (SPEC V3 §8). */
+function formatQuickArea(interview: AreaInterview): string {
+  return section('RESPOSTAS (ANÁLISE RÁPIDA)', [
+    `Principais tarefas: ${value(interview.mainTasks)}`,
+    `Tarefa que mais consome tempo: ${value(interview.mostTimeConsumingTask)}`,
+    `Tarefa a eliminar ou simplificar: ${value(interview.taskToEliminate)}`,
+    `Como é feita atualmente: ${value(interview.currentProcessSummary)}`,
+    `Ferramentas/sistemas: ${list(interview.tools)}${interview.toolsOther ? ` (${interview.toolsOther})` : ''}`,
+    `Existe transferência manual de informações: ${value(interview.hasInformationTransfer)}`,
+    `Existe retrabalho ou erro: ${value(interview.hasReworkOrErrors)}`,
+    `Pessoa indispensável para o processo: ${value(interview.keyPersonDependency)}`,
+    `Existem documentos envolvidos: ${value(interview.hasDocuments)}`,
+    `Observações: ${value(interview.additionalNotes)}`,
+  ])
+}
 
-  const lines = rows.map(([label, key]) => {
-    const perArea = interviews.map((interview) => `${interview.area}: ${interview.risk[key] || '(não informado)'}`).join(' | ')
-    return `${label}:\n${perArea}`
-  })
-
-  return `DADOS E SEGURANÇA\n\n${lines.join('\n\n')}`
+/** Exportado para reaproveitamento pelo prompt da IA dormente (lib/ai/prompt.ts) — mesma formatação legível. */
+export function formatAreaBlock(interview: AreaInterview, label: string): string {
+  const header = [`Área: ${interview.area}`, `Nível: ${interview.depth === 'APROFUNDADA' ? 'APROFUNDADA' : 'RÁPIDA'}`].join('\n')
+  const body = interview.depth === 'APROFUNDADA' ? formatDeepArea(interview) : formatQuickArea(interview)
+  return `${SEPARATOR}\n${label}\n${SEPARATOR}\n\n${header}\n\n${body}`
 }
 
 export function buildDiagnosticEmailSubject(request: DiagnosticRequest): string {
@@ -111,7 +182,7 @@ export function buildDiagnosticEmailSubject(request: DiagnosticRequest): string 
 }
 
 export function buildDiagnosticEmailBody(request: DiagnosticRequest): string {
-  const { company, priorityAreas, interviews, contact } = request
+  const { company, interviews, contact } = request
 
   const header = [
     'NOVO DIAGNÓSTICO DE OPORTUNIDADES COM IA',
@@ -122,23 +193,16 @@ export function buildDiagnosticEmailBody(request: DiagnosticRequest): string {
     `Funcionários: ${value(company.employeeRange)}`,
     `Atividade principal: ${value(company.mainBusinessActivity)}`,
     '',
-    'ÁREAS PRIORITÁRIAS',
-    ...priorityAreas.map((priorityArea, index) => `${index + 1}. ${priorityArea.area} — ${priorityArea.reason}`),
-  ].join('\n')
-
-  const areaBlocks = interviews.map((interview, index) => formatAreaBlock(interview, index)).join(`\n\n${SEPARATOR}\n\n`)
-
-  const securitySection = formatSecuritySection(interviews)
-
-  const contactSection = [
-    'CONTATO',
-    '',
-    `Responsável: ${value(contact.responsibleName)}`,
+    'RESPONSÁVEL',
+    `Nome: ${value(contact.responsibleName)}`,
     `WhatsApp: ${value(contact.whatsapp)}`,
     `E-mail: ${value(contact.email)}`,
   ].join('\n')
 
-  return [header, areaBlocks, securitySection, contactSection].join(`\n\n${SEPARATOR}\n\n`)
+  const areaLabels = ['ÁREA PRIORITÁRIA', 'ÁREA COMPLEMENTAR 1', 'ÁREA COMPLEMENTAR 2']
+  const areaBlocks = interviews.map((interview, index) => formatAreaBlock(interview, areaLabels[index] ?? `ÁREA ${index + 1}`))
+
+  return [header, ...areaBlocks, `${SEPARATOR}\nFIM DO DIAGNÓSTICO\n${SEPARATOR}`].join('\n\n')
 }
 
 export function buildDiagnosticEmail(request: DiagnosticRequest): { subject: string; text: string } {

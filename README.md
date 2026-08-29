@@ -1,8 +1,10 @@
 # Diagnóstico de Oportunidades com IA
 
-Aplicação que conduz uma entrevista guiada e profunda sobre até 3 áreas
-prioritárias de uma empresa, e envia todas as respostas por e-mail para
-análise manual.
+Aplicação que conduz uma entrevista consultiva sobre até 3 áreas de uma
+empresa — a primeira é sempre obrigatória e aprofundada; a segunda e a
+terceira são opcionais e, quando escolhidas, o usuário decide entre uma
+análise rápida (10 perguntas) ou aprofundada (entrevista completa) — e envia
+todas as respostas por e-mail para análise manual.
 
 **Esta versão não usa IA para gerar o diagnóstico automaticamente.** O
 objetivo é coletar informação suficiente para que um consultor analise a
@@ -10,8 +12,9 @@ empresa manualmente e entre em contato pelo WhatsApp ou e-mail. A
 arquitetura de IA (OpenAI) permanece no código, desativada, pronta para ser
 reativada no futuro — veja [Reativando a IA](#reativando-a-ia-no-futuro).
 
-Fluxo: Landing page → Entrevista (mapa da empresa, até 3 áreas em
-profundidade, contato) → Revisão das respostas → Envio → E-mail para o dono
+Fluxo: Landing page → Entrevista (mapa da empresa, área prioritária
+aprofundada, até 2 áreas complementares opcionais em modo rápido ou
+aprofundado, contato) → Revisão das respostas → Envio → E-mail para o dono
 do produto → Tela de confirmação.
 
 Este projeto segue a especificação em [`SPEC.md`](./SPEC.md). Não há banco de
@@ -113,11 +116,15 @@ npx tsc --noEmit
 npm test
 ```
 
-Cobre: validação (Zod), scoring/impacto/árvore de solução determinísticos,
-gatilhos e classificação de risco, formatação do e-mail do diagnóstico, o
-endpoint `POST /api/diagnostico` (com o envio de e-mail mockado — nenhum
-teste envia e-mail real) e o parsing/validação da saída da IA (módulo
-dormente, mantido testado para facilitar reativação futura).
+Cobre: validação (Zod) — incluindo as regras de área prioritária/
+complementar e a proibição de áreas repetidas —, a máquina de estados da
+seleção progressiva de áreas (`area-flow.ts`), o dimensionamento manual de
+tarefas, impacto/árvore de solução/gatilhos/classificação de risco
+(usados pelo módulo de IA dormente), formatação do e-mail do diagnóstico
+(incluindo os 6 cenários de combinação de áreas/profundidades do §26 da
+spec), o endpoint `POST /api/diagnostico` (com o envio de e-mail mockado —
+nenhum teste envia e-mail real) e o parsing/validação da saída da IA
+(módulo dormente, mantido testado para facilitar reativação futura).
 
 ## Arquitetura
 
@@ -133,8 +140,10 @@ src/
 │   ├── diagnostico/             # Motor da entrevista (mapa, blocos, revisão)
 │   └── ui/                      # Primitivos reutilizáveis
 ├── lib/
-│   ├── diagnostic/               # Lógica pura: perguntas, gatilhos, categorias,
-│   │                              # scoring (0–25), impacto, árvore de solução
+│   ├── diagnostic/               # Lógica pura: perguntas (rápida/aprofundada),
+│   │                              # seleção de áreas (area-flow), dimensionamento
+│   │                              # manual, gatilhos, categorias, impacto, árvore
+│   │                              # de solução (usados pelo módulo de IA dormente)
 │   ├── email/                    # Template e envio do e-mail do diagnóstico (ativo)
 │   ├── ai/                       # Cliente OpenAI, prompt, schema, análise (dormente)
 │   ├── validation/                # Schemas Zod (frontend + backend)

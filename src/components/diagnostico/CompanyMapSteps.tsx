@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { AREAS, EMPLOYEE_RANGES, MAX_PRIORITY_AREAS, SEGMENTS } from '@/types/diagnostic'
-import type { CompanyMap, PriorityAreaSelection } from '@/types/diagnostic'
+import { AREAS, EMPLOYEE_RANGES, SEGMENTS } from '@/types/diagnostic'
+import type { CompanyMap } from '@/types/diagnostic'
 import { FIELD_LIMITS } from '@/lib/config/limits'
 import { Field, SelectInput, TextInput, TextAreaInput, ChoiceCard } from '@/components/ui/FormControls'
 import { Button } from '@/components/ui/Button'
@@ -123,10 +123,6 @@ export function StepAreas({ data, errors, onChange }: CompanyMapStepProps) {
       'areas',
       data.areas.filter((a) => a !== area),
     )
-    onChange(
-      'priorityAreas',
-      data.priorityAreas.filter((p) => p.area !== area),
-    )
   }
 
   return (
@@ -174,79 +170,3 @@ export function StepAreas({ data, errors, onChange }: CompanyMapStepProps) {
   )
 }
 
-export function StepPriorityAreas({ data, errors, onChange }: CompanyMapStepProps) {
-  function toggleArea(area: string) {
-    const exists = data.priorityAreas.some((p) => p.area === area)
-    if (exists) {
-      onChange(
-        'priorityAreas',
-        data.priorityAreas.filter((p) => p.area !== area),
-      )
-      return
-    }
-    if (data.priorityAreas.length >= MAX_PRIORITY_AREAS) return
-    const next: PriorityAreaSelection[] = [...data.priorityAreas, { area, reason: '' }]
-    onChange('priorityAreas', next)
-  }
-
-  function updateReason(area: string, reason: string) {
-    onChange(
-      'priorityAreas',
-      data.priorityAreas.map((p) => (p.area === area ? { ...p, reason } : p)),
-    )
-  }
-
-  const atLimit = data.priorityAreas.length >= MAX_PRIORITY_AREAS
-
-  return (
-    <div className="flex flex-col gap-6">
-      <Field
-        id="priorityAreas"
-        label={`Quais áreas mais consomem tempo da equipe? (escolha até ${MAX_PRIORITY_AREAS})`}
-        required
-        error={errors['priorityAreas']}
-        hint="Vamos investigar essas áreas em profundidade — por isso o limite."
-      >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {data.areas.map((area) => {
-            const checked = data.priorityAreas.some((p) => p.area === area)
-            return (
-              <ChoiceCard
-                key={area}
-                type="checkbox"
-                name="priorityAreas"
-                value={area}
-                label={area}
-                checked={checked}
-                onChange={() => {
-                  if (!checked && atLimit) return
-                  toggleArea(area)
-                }}
-              />
-            )
-          })}
-        </div>
-      </Field>
-
-      {data.priorityAreas.map((priorityArea, index) => (
-        <Field
-          key={priorityArea.area}
-          id={`areaReason-${priorityArea.area}`}
-          label={`Por que "${priorityArea.area}" consome tanto tempo?`}
-          required
-          error={errors[`priorityAreas.${index}.reason`]}
-          maxLength={FIELD_LIMITS.areaReason}
-          value={priorityArea.reason}
-        >
-          <TextAreaInput
-            id={`areaReason-${priorityArea.area}`}
-            value={priorityArea.reason}
-            maxLength={FIELD_LIMITS.areaReason}
-            onChange={(e) => updateReason(priorityArea.area, e.target.value)}
-            error={errors[`priorityAreas.${index}.reason`]}
-          />
-        </Field>
-      ))}
-    </div>
-  )
-}

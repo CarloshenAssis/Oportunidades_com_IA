@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/ui/Container'
-import type { AreaInterview, CompanyMap, ContactData } from '@/types/diagnostic'
+import type { AreaDepth, AreaInterview, CompanyMap, ContactData, YesNoUnknown } from '@/types/diagnostic'
 import {
   EMPTY_COMPANY_MAP,
   EMPTY_CONTACT,
@@ -14,10 +14,12 @@ import {
   validateContact,
   validateFullInterview,
 } from '@/lib/validation/diagnostic'
-import { extractCandidateTasksFromArea, pickTaskForQuantitativeSizing } from '@/lib/diagnostic/scoring'
-import { getApplicableSteps, getAreaHints, validateStepAnswers } from '@/lib/diagnostic/questions'
+import { extractDimensioningCandidates } from '@/lib/diagnostic/dimensioning'
+import { availableAreasFor, nextStepAfterAreaDecision, nextStepAfterAreaInterview } from '@/lib/diagnostic/area-flow'
+import { getApplicableSteps, validateStepAnswers } from '@/lib/diagnostic/questions'
 import { ProgressBar } from './ProgressBar'
-import { StepCompanyActivity, StepAreas, StepCompanyBasics, StepPriorityAreas } from './CompanyMapSteps'
+import { StepCompanyActivity, StepAreas, StepCompanyBasics } from './CompanyMapSteps'
+import { StepSelectArea, StepSelectDepth, StepAreaDecision } from './AreaSelectionSteps'
 import { InterviewStepForm } from './InterviewStepForm'
 import { QuantitativeSizingStep } from './QuantitativeSizingStep'
 import { StepContact } from './StepContact'
@@ -28,12 +30,14 @@ type Phase =
   | { type: 'company-basics' }
   | { type: 'company-activity' }
   | { type: 'company-areas' }
-  | { type: 'company-priority' }
+  | { type: 'select-area'; ordinal: number }
+  | { type: 'select-depth'; ordinal: number }
   | { type: 'area-interview'; areaIndex: number }
+  | { type: 'area-decision'; ordinal: number }
   | { type: 'contact' }
   | { type: 'review' }
 
-function getPhaseLabel(phase: Phase, companyMap: CompanyMap): string {
+function getPhaseLabel(phase: Phase, interviews: AreaInterview[]): string {
   switch (phase.type) {
     case 'company-basics':
       return 'Sobre a empresa'
@@ -41,10 +45,14 @@ function getPhaseLabel(phase: Phase, companyMap: CompanyMap): string {
       return 'Atividade principal'
     case 'company-areas':
       return 'Áreas da empresa'
-    case 'company-priority':
-      return 'Áreas prioritárias'
+    case 'select-area':
+      return phase.ordinal === 0 ? 'Área prioritária' : `Área complementar ${phase.ordinal}`
+    case 'select-depth':
+      return 'Profundidade da entrevista'
     case 'area-interview':
-      return `Entrevista: ${companyMap.priorityAreas[phase.areaIndex]?.area ?? ''}`
+      return `Entrevista: ${interviews[phase.areaIndex]?.area ?? ''}`
+    case 'area-decision':
+      return 'Mais uma área?'
     case 'contact':
       return 'Contato'
     case 'review':
@@ -62,25 +70,31 @@ export function InterviewWizard() {
   const [interviews, setInterviews] = useState<AreaInterview[]>([])
   const [contact, setContact] = useState<ContactData>(EMPTY_CONTACT)
 
-  const [phaseIndex, setPhaseIndex] = useState(0)
+  const [phase, setPhase] = useState<Phase>({ type: 'company-basics' })
+  const [history, setHistory] = useState<Phase[]>([])
   const [interviewStepIndex, setInterviewStepIndex] = useState(0)
+
+  const [pendingArea, setPendingArea] = useState('')
+  const [pendingDepth, setPendingDepth] = useState<AreaDepth | ''>('')
+  const [decision, setDecision] = useState<YesNoUnknown | ''>('')
+
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const headingRef = useRef<HTMLHeadingElement>(null)
 
-  const phases: Phase[] = useMemo(() => {
-    const base: Phase[] = [{ type: 'company-basics' }, { type: 'company-activity' }, { type: 'company-areas' }, { type: 'company-priority' }]
-    const areaPhases: Phase[] = companyMap.priorityAreas.map((_, index) => ({ type: 'area-interview', areaIndex: index }))
-    return [...base, ...areaPhases, { type: 'contact' }, { type: 'review' }]
-  }, [companyMap.priorityAreas])
-
-  const currentPhase = phases[phaseIndex]
-
   function focusHeading() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
     headingRef.current?.focus()
+  }
+
+  function goTo(next: Phase) {
+    setHistory((prev) => [...prev, phase])
+    setPhase(next)
+    setInterviewStepIndex(0)
+    setErrors({})
+    focusHeading()
   }
 
   function updateCompanyMap<K extends keyof CompanyMap>(field: K, value: CompanyMap[K]) {
@@ -112,35 +126,29 @@ export function InterviewWizard() {
     setErrors({})
   }
 
-  function goToNextPhase() {
-    setPhaseIndex((prev) => Math.min(prev + 1, phases.length - 1))
-    setInterviewStepIndex(0)
-    setErrors({})
-    focusHeading()
-  }
-
   function handleBack() {
-    if (currentPhase.type === 'area-interview' && interviewStepIndex > 0) {
+    if (phase.type === 'area-interview' && interviewStepIndex > 0) {
       setInterviewStepIndex((prev) => prev - 1)
       setErrors({})
       focusHeading()
       return
     }
 
-    if (phaseIndex === 0) return
+    if (history.length === 0) return
 
-    const prevPhaseIndex = phaseIndex - 1
-    const prevPhase = phases[prevPhaseIndex]
-    setPhaseIndex(prevPhaseIndex)
+    const prevHistory = [...history]
+    const prevPhase = prevHistory.pop() as Phase
+    setHistory(prevHistory)
     setErrors({})
 
     if (prevPhase.type === 'area-interview') {
       const prevInterview = interviews[prevPhase.areaIndex]
       const applicable = prevInterview ? getApplicableSteps(prevInterview) : []
-      setInterviewStepIndex(Math.max(0, applicable.length - 1))
+      setInterviewStepIndex(applicable.length)
     } else {
       setInterviewStepIndex(0)
     }
+    setPhase(prevPhase)
     focusHeading()
   }
 
@@ -153,22 +161,29 @@ export function InterviewWizard() {
     return next
   }
 
+  function advanceAfterAreaInterview(finishedInterviews: AreaInterview[]) {
+    const next = nextStepAfterAreaInterview(finishedInterviews)
+    if (next === 'ask-second') {
+      goTo({ type: 'area-decision', ordinal: 1 })
+    } else if (next === 'ask-third') {
+      goTo({ type: 'area-decision', ordinal: 2 })
+    } else {
+      goTo({ type: 'contact' })
+    }
+  }
+
   function handleAreaInterviewNext(areaIndex: number) {
     const interview = interviews[areaIndex]
     const applicableSteps = getApplicableSteps(interview)
     const isSizingStep = interviewStepIndex >= applicableSteps.length
 
-    function finishAreaInterview() {
+    if (isSizingStep) {
       const areaErrors = validateAreaInterview(interview)
       if (Object.keys(areaErrors).length > 0) {
         setErrors(areaErrors)
         return
       }
-      goToNextPhase()
-    }
-
-    if (isSizingStep) {
-      finishAreaInterview()
+      advanceAfterAreaInterview(interviews)
       return
     }
 
@@ -179,22 +194,8 @@ export function InterviewWizard() {
       return
     }
     setErrors({})
-
-    const isLastBlockStep = interviewStepIndex + 1 >= applicableSteps.length
-    if (!isLastBlockStep) {
-      setInterviewStepIndex(interviewStepIndex + 1)
-      focusHeading()
-      return
-    }
-
-    const candidateTask = pickTaskForQuantitativeSizing(extractCandidateTasksFromArea(interview))
-    if (candidateTask) {
-      setInterviewStepIndex(applicableSteps.length)
-      focusHeading()
-      return
-    }
-
-    finishAreaInterview()
+    setInterviewStepIndex(interviewStepIndex + 1)
+    focusHeading()
   }
 
   async function handleSubmit() {
@@ -207,7 +208,6 @@ export function InterviewWizard() {
         mainBusinessActivity: companyMap.mainBusinessActivity,
       },
       areas: companyMap.areas,
-      priorityAreas: companyMap.priorityAreas,
       interviews,
       contact,
     }
@@ -244,14 +244,14 @@ export function InterviewWizard() {
   }
 
   function handleNext() {
-    switch (currentPhase.type) {
+    switch (phase.type) {
       case 'company-basics': {
         const stepErrors = validateCompanyBasics()
         if (Object.keys(stepErrors).length > 0) {
           setErrors(stepErrors)
           return
         }
-        goToNextPhase()
+        goTo({ type: 'company-activity' })
         return
       }
       case 'company-activity': {
@@ -259,7 +259,7 @@ export function InterviewWizard() {
           setErrors({ mainBusinessActivity: 'Campo obrigatório.' })
           return
         }
-        goToNextPhase()
+        goTo({ type: 'company-areas' })
         return
       }
       case 'company-areas': {
@@ -267,38 +267,64 @@ export function InterviewWizard() {
           setErrors({ areas: 'Selecione ao menos uma área.' })
           return
         }
-        goToNextPhase()
+        goTo({ type: 'select-area', ordinal: 0 })
         return
       }
-      case 'company-priority': {
-        if (companyMap.priorityAreas.length === 0) {
-          setErrors({ priorityAreas: 'Selecione ao menos uma área.' })
+      case 'select-area': {
+        if (!pendingArea) {
+          setErrors({ selectArea: 'Selecione uma área.' })
           return
         }
-        const reasonErrors: Record<string, string> = {}
-        companyMap.priorityAreas.forEach((priorityArea, index) => {
-          if (!priorityArea.reason.trim()) {
-            reasonErrors[`priorityAreas.${index}.reason`] = 'Campo obrigatório.'
-          }
-        })
-        if (Object.keys(reasonErrors).length > 0) {
-          setErrors(reasonErrors)
+        if (phase.ordinal === 0) {
+          const newIndex = interviews.length
+          const newInterview = createEmptyAreaInterview(pendingArea, 'PRIORITARIA', 'APROFUNDADA')
+          setInterviews((prev) => [...prev, newInterview])
+          setPendingArea('')
+          goTo({ type: 'area-interview', areaIndex: newIndex })
+        } else {
+          goTo({ type: 'select-depth', ordinal: phase.ordinal })
+        }
+        return
+      }
+      case 'select-depth': {
+        if (!pendingDepth) {
+          setErrors({ selectDepth: 'Selecione uma opção.' })
           return
         }
-        setInterviews(companyMap.priorityAreas.map((priorityArea) => createEmptyAreaInterview(priorityArea.area)))
-        goToNextPhase()
+        const newIndex = interviews.length
+        const newInterview = createEmptyAreaInterview(pendingArea, 'COMPLEMENTAR', pendingDepth)
+        setInterviews((prev) => [...prev, newInterview])
+        setPendingArea('')
+        setPendingDepth('')
+        goTo({ type: 'area-interview', areaIndex: newIndex })
         return
       }
       case 'area-interview':
-        handleAreaInterviewNext(currentPhase.areaIndex)
+        handleAreaInterviewNext(phase.areaIndex)
         return
+      case 'area-decision': {
+        if (!decision) {
+          setErrors({ areaDecision: 'Selecione uma opção.' })
+          return
+        }
+        const ordinal = phase.ordinal
+        const wantsMore = decision === 'Sim'
+        const next = nextStepAfterAreaDecision(wantsMore)
+        setDecision('')
+        if (next === 'select-area') {
+          goTo({ type: 'select-area', ordinal })
+        } else {
+          goTo({ type: 'contact' })
+        }
+        return
+      }
       case 'contact': {
         const contactErrors = validateContact(contact)
         if (Object.keys(contactErrors).length > 0) {
           setErrors(contactErrors)
           return
         }
-        goToNextPhase()
+        goTo({ type: 'review' })
         return
       }
       case 'review':
@@ -315,23 +341,27 @@ export function InterviewWizard() {
     )
   }
 
-  const isLastPhase = phaseIndex === phases.length - 1
-  const currentInterview = currentPhase.type === 'area-interview' ? interviews[currentPhase.areaIndex] : undefined
+  const isLastPhase = phase.type === 'review'
+  const currentInterview = phase.type === 'area-interview' ? interviews[phase.areaIndex] : undefined
   const applicableSteps = currentInterview ? getApplicableSteps(currentInterview) : []
   const isSizingStep = currentInterview ? interviewStepIndex >= applicableSteps.length : false
-  const candidateTaskForSizing = currentInterview && isSizingStep ? pickTaskForQuantitativeSizing(extractCandidateTasksFromArea(currentInterview)) : null
+
+  const stepNumber = history.length + 1
+  const totalStepsEstimate = isLastPhase ? stepNumber : stepNumber + 3
+
+  const canGoBack = history.length > 0 || (phase.type === 'area-interview' && interviewStepIndex > 0)
 
   return (
     <Container className="max-w-2xl py-12 sm:py-16">
       <div className="mb-8">
-        <ProgressBar label={getPhaseLabel(currentPhase, companyMap)} step={phaseIndex + 1} totalSteps={phases.length} />
+        <ProgressBar label={getPhaseLabel(phase, interviews)} step={stepNumber} totalSteps={totalStepsEstimate} />
       </div>
 
       <h1 ref={headingRef} tabIndex={-1} className="mb-2 text-2xl font-semibold tracking-tight text-primary outline-none">
-        {getPhaseLabel(currentPhase, companyMap)}
+        {getPhaseLabel(phase, interviews)}
       </h1>
 
-      {currentPhase.type === 'area-interview' && !isSizingStep ? (
+      {phase.type === 'area-interview' && !isSizingStep ? (
         <p className="mb-6 text-sm text-muted">
           Bloco {interviewStepIndex + 1} de {applicableSteps.length}
         </p>
@@ -339,36 +369,68 @@ export function InterviewWizard() {
         <div className="mb-6" />
       )}
 
-      {currentPhase.type === 'company-basics' ? <StepCompanyBasics data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
-      {currentPhase.type === 'company-activity' ? <StepCompanyActivity data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
-      {currentPhase.type === 'company-areas' ? <StepAreas data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
-      {currentPhase.type === 'company-priority' ? <StepPriorityAreas data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
+      {phase.type === 'company-basics' ? <StepCompanyBasics data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
+      {phase.type === 'company-activity' ? <StepCompanyActivity data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
+      {phase.type === 'company-areas' ? <StepAreas data={companyMap} errors={errors} onChange={updateCompanyMap} /> : null}
 
-      {currentPhase.type === 'area-interview' && currentInterview ? (
+      {phase.type === 'select-area' ? (
+        <StepSelectArea
+          ordinal={phase.ordinal}
+          availableAreas={availableAreasFor(companyMap.areas, interviews)}
+          selectedArea={pendingArea}
+          onSelect={(area) => {
+            setPendingArea(area)
+            setErrors({})
+          }}
+          error={errors['selectArea']}
+        />
+      ) : null}
+
+      {phase.type === 'select-depth' ? (
+        <StepSelectDepth
+          area={pendingArea}
+          depth={pendingDepth}
+          onSelect={(depth) => {
+            setPendingDepth(depth)
+            setErrors({})
+          }}
+          error={errors['selectDepth']}
+        />
+      ) : null}
+
+      {phase.type === 'area-decision' ? (
+        <StepAreaDecision
+          ordinal={phase.ordinal}
+          decision={decision}
+          onSelect={(value) => {
+            setDecision(value)
+            setErrors({})
+          }}
+          error={errors['areaDecision']}
+        />
+      ) : null}
+
+      {phase.type === 'area-interview' && currentInterview ? (
         isSizingStep ? (
-          candidateTaskForSizing ? (
-            <QuantitativeSizingStep
-              task={candidateTaskForSizing}
-              interview={currentInterview}
-              onChange={(next) => updateInterview(currentPhase.areaIndex, next)}
-            />
-          ) : (
-            <p className="text-muted">Entrevista desta área concluída.</p>
-          )
+          <QuantitativeSizingStep
+            candidates={extractDimensioningCandidates(currentInterview)}
+            interview={currentInterview}
+            onChange={(next) => updateInterview(phase.areaIndex, next)}
+            error={errors['quantitativeTask']}
+          />
         ) : (
           <InterviewStepForm
             step={applicableSteps[interviewStepIndex]}
             interview={currentInterview}
             errors={errors}
-            onChange={(next) => updateInterview(currentPhase.areaIndex, next)}
-            hints={getAreaHints(currentInterview.area)}
+            onChange={(next) => updateInterview(phase.areaIndex, next)}
           />
         )
       ) : null}
 
-      {currentPhase.type === 'contact' ? <StepContact data={contact} errors={errors} onChange={updateContact} /> : null}
+      {phase.type === 'contact' ? <StepContact data={contact} errors={errors} onChange={updateContact} /> : null}
 
-      {currentPhase.type === 'review' ? <ReviewStep companyMap={companyMap} interviews={interviews} contact={contact} /> : null}
+      {phase.type === 'review' ? <ReviewStep companyMap={companyMap} interviews={interviews} contact={contact} /> : null}
 
       {submitError ? (
         <p role="alert" className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -377,7 +439,7 @@ export function InterviewWizard() {
       ) : null}
 
       <div className="mt-10 flex items-center justify-between gap-4">
-        {phaseIndex > 0 || (currentPhase.type === 'area-interview' && interviewStepIndex > 0) ? (
+        {canGoBack ? (
           <Button type="button" variant="outline" onClick={handleBack}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Voltar

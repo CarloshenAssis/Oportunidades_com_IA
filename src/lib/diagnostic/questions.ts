@@ -1,10 +1,13 @@
 import type { AreaInterview, AreaRiskAnswers } from '@/types/diagnostic'
 import {
-  INFORMATION_SOURCES,
-  REWORK_REASONS,
+  IMPACT_OPTIONS,
+  INFORMATION_CONCENTRATION_OPTIONS,
+  PREVIOUS_ATTEMPT_OPTIONS,
+  REWORK_CAUSES,
   SEARCH_TIME_OPTIONS,
+  TOOL_OPTIONS,
   TRANSFER_FREQUENCY_OPTIONS,
-  YES_NO_SOMETIMES,
+  WRITING_STANDARDIZATION_OPTIONS,
   YES_NO_UNKNOWN,
 } from '@/types/diagnostic'
 import { isFollowUpWorthy } from './normalize'
@@ -22,7 +25,7 @@ export type QuestionDef = {
   placeholder?: string
   helpText?: string
   maxLength?: number
-  /** Perguntas de classificação rápida (rádio) que devem ser respondidas para avançar. Blocos de texto nunca são obrigatórios (SPEC V2 §55). */
+  /** Perguntas de classificação rápida (rádio/seleção) que devem ser respondidas para avançar. Blocos de texto nunca são obrigatórios (SPEC V3 §24 — só perguntar o que ajuda a análise). */
   required?: boolean
 }
 
@@ -30,47 +33,48 @@ export type InterviewStep = {
   id: string
   block: string
   questions: QuestionDef[]
-  /** Mostrar esta etapa somente quando a condição sobre as respostas já dadas for verdadeira (SPEC V2 §50). */
+  /** Mostrar esta etapa somente quando a condição sobre as respostas já dadas for verdadeira. */
   condition?: (interview: Partial<AreaInterview>) => boolean
 }
 
 const MAX_TEXT = 1500
 const MAX_SHORT_TEXT = 500
 
-/** Entrevista de processos por área — blocos A a K + risco de dados (SPEC V2 §7–§17, §28). */
-export const AREA_INTERVIEW_STEPS: InterviewStep[] = [
+const isPositiveAttempt = (interview: Partial<AreaInterview>) =>
+  !!interview.previousAttempts && interview.previousAttempts !== 'Não' && interview.previousAttempts !== 'Não sei'
+
+/**
+ * Entrevista aprofundada — blocos A a O (SPEC V3 §6). Usada sempre para a área
+ * prioritária, e para áreas complementares quando o usuário escolhe "análise aprofundada".
+ */
+export const DEEP_INTERVIEW_STEPS: InterviewStep[] = [
+  // Bloco A — Rotina
   {
     id: 'A',
-    block: 'Repetição',
+    block: 'Rotina',
     questions: [
+      { field: 'dailyRepetitiveTasks', prompt: 'O que essa área faz repetidamente todos os dias?', type: 'textarea', maxLength: MAX_TEXT },
+      { field: 'weeklyRepetitiveTasks', prompt: 'O que essa área faz repetidamente toda semana?', type: 'textarea', maxLength: MAX_TEXT },
+      { field: 'monthlyRepetitiveTasks', prompt: 'O que essa área faz repetidamente todo mês?', type: 'textarea', maxLength: MAX_TEXT },
       {
-        field: 'dailyRepetitiveTasks',
-        prompt: 'O que essa área faz repetidamente todos os dias?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
-      },
-      {
-        field: 'weeklyRepetitiveTasks',
-        prompt: 'O que essa área faz repetidamente toda semana?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
-      },
-      {
-        field: 'monthlyRepetitiveTasks',
-        prompt: 'O que essa área faz repetidamente todo mês?',
+        field: 'multipleTimesPerDay',
+        prompt: 'Existem atividades que se repetem várias vezes durante o dia?',
         type: 'textarea',
         maxLength: MAX_TEXT,
       },
     ],
   },
+
+  // Bloco B — Principais tarefas
   {
     id: 'B1',
-    block: 'Tempo e dor',
+    block: 'Principais tarefas',
     questions: [
-      { field: 'mostTimeConsumingTask', prompt: 'Qual tarefa mais toma tempo dessa área?', type: 'textarea', maxLength: MAX_TEXT },
+      { field: 'mainTasks', prompt: 'Quais são as principais tarefas realizadas nessa área?', type: 'textarea', maxLength: MAX_TEXT },
+      { field: 'mostTimeConsumingTask', prompt: 'Qual tarefa mais consome tempo?', type: 'textarea', maxLength: MAX_TEXT },
       {
-        field: 'taskTheyWouldEliminate',
-        prompt: 'Qual tarefa você gostaria de não precisar fazer?',
+        field: 'taskToEliminate',
+        prompt: 'Se você pudesse eliminar ou simplificar uma tarefa dessa área amanhã, qual seria?',
         type: 'textarea',
         maxLength: MAX_TEXT,
       },
@@ -78,194 +82,345 @@ export const AREA_INTERVIEW_STEPS: InterviewStep[] = [
   },
   {
     id: 'B2',
-    block: 'Tempo e dor',
-    condition: (interview) => isFollowUpWorthy(interview.taskTheyWouldEliminate),
-    questions: [
-      { field: 'taskPainReason', prompt: 'Por que essa tarefa incomoda tanto?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
-    ],
+    block: 'Principais tarefas',
+    condition: (interview) => isFollowUpWorthy(interview.taskToEliminate),
+    questions: [{ field: 'eliminationReason', prompt: 'Por que justamente essa tarefa?', type: 'textarea', maxLength: MAX_SHORT_TEXT }],
   },
+
+  // Bloco C — Como o processo funciona hoje
   {
     id: 'C1',
-    block: 'Transferência de informação',
+    block: 'Como o processo funciona hoje',
     questions: [
       {
-        field: 'copyPasteTasks',
-        prompt: 'Qual tarefa exige copiar informações de um lugar para outro?',
+        field: 'processStart',
+        prompt: 'Como esse processo começa?',
         type: 'textarea',
         maxLength: MAX_TEXT,
-        helpText: 'Exemplos: Excel → sistema, e-mail → planilha, WhatsApp → CRM, PDF → sistema.',
+        helpText: 'Não precisa explicar de forma técnica — conte o que uma pessoa faz desde o começo até terminar.',
       },
+      { field: 'processSteps', prompt: 'Quais são as principais etapas?', type: 'textarea', maxLength: MAX_TEXT },
     ],
   },
   {
     id: 'C2',
-    block: 'Transferência de informação',
-    condition: (interview) => isFollowUpWorthy(interview.copyPasteTasks),
+    block: 'Como o processo funciona hoje',
+    questions: [
+      { field: 'processPeople', prompt: 'Quem participa?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'processManualWork', prompt: 'O que precisa ser feito manualmente?', type: 'textarea', maxLength: MAX_TEXT },
+      {
+        field: 'processDecisions',
+        prompt: 'Quais decisões a pessoa precisa tomar durante o processo?',
+        type: 'textarea',
+        maxLength: MAX_TEXT,
+      },
+    ],
+  },
+  {
+    id: 'C3',
+    block: 'Como o processo funciona hoje',
+    questions: [
+      { field: 'processEnd', prompt: 'Como o processo termina?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'processResult', prompt: 'Qual é o resultado final esperado?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+    ],
+  },
+
+  // Bloco D — Ferramentas e sistemas
+  {
+    id: 'D1',
+    block: 'Ferramentas e sistemas',
+    questions: [{ field: 'tools', prompt: 'Quais ferramentas ou sistemas são usados nesse processo?', type: 'multiselect', options: TOOL_OPTIONS }],
+  },
+  {
+    id: 'D2',
+    block: 'Ferramentas e sistemas',
+    condition: (interview) => !!interview.tools?.includes('Outro'),
+    questions: [{ field: 'toolsOther', prompt: 'Qual?', type: 'textarea', maxLength: MAX_SHORT_TEXT }],
+  },
+  {
+    id: 'D3',
+    block: 'Ferramentas e sistemas',
     questions: [
       {
-        field: 'informationTransfer',
-        prompt: 'De onde a informação vem e para onde ela precisa ir?',
+        field: 'toolsExchangeInfo',
+        prompt: 'Essas ferramentas precisam trocar informações entre si?',
+        type: 'radio',
+        options: YES_NO_UNKNOWN,
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'D4',
+    block: 'Ferramentas e sistemas',
+    condition: (interview) => interview.toolsExchangeInfo === 'Sim',
+    questions: [
+      {
+        field: 'toolsExchangeDescription',
+        prompt: 'Quais informações são transferidas e entre quais ferramentas?',
         type: 'textarea',
         maxLength: MAX_SHORT_TEXT,
       },
+    ],
+  },
+
+  // Bloco E — Transferência de informações
+  {
+    id: 'E1',
+    block: 'Transferência de informações',
+    questions: [
       {
-        field: 'transferFrequency',
-        prompt: 'Quantas vezes aproximadamente isso acontece?',
+        field: 'hasInformationTransfer',
+        prompt: 'Existe alguma tarefa em que alguém precisa copiar informações de um lugar para outro?',
+        type: 'radio',
+        options: YES_NO_UNKNOWN,
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'E2',
+    block: 'Transferência de informações',
+    condition: (interview) => interview.hasInformationTransfer === 'Sim',
+    questions: [
+      { field: 'informationSource', prompt: 'De onde vem a informação?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'informationDestination', prompt: 'Para onde ela vai?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+    ],
+  },
+  {
+    id: 'E3',
+    block: 'Transferência de informações',
+    condition: (interview) => interview.hasInformationTransfer === 'Sim',
+    questions: [
+      { field: 'informationTransferWho', prompt: 'Quem faz essa transferência?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      {
+        field: 'informationTransferFrequency',
+        prompt: 'Com que frequência isso acontece?',
         type: 'select',
         options: TRANSFER_FREQUENCY_OPTIONS,
       },
     ],
   },
   {
-    id: 'D1',
-    block: 'Documentos',
+    id: 'E4',
+    block: 'Transferência de informações',
+    condition: (interview) => interview.hasInformationTransfer === 'Sim',
     questions: [
-      {
-        field: 'documentTasks',
-        prompt: 'Qual tarefa exige ler muitos documentos, PDFs, contratos, notas ou relatórios?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
-      },
+      { field: 'informationTransferManualEntry', prompt: 'A informação é digitada manualmente?', type: 'radio', options: YES_NO_UNKNOWN },
+      { field: 'informationTransferReview', prompt: 'Existe conferência depois?', type: 'radio', options: YES_NO_UNKNOWN },
     ],
   },
-  {
-    id: 'D2',
-    block: 'Documentos',
-    condition: (interview) => isFollowUpWorthy(interview.documentTasks),
-    questions: [
-      {
-        field: 'documentExtraction',
-        prompt: 'O que vocês precisam encontrar ou retirar desses documentos?',
-        type: 'textarea',
-        maxLength: MAX_SHORT_TEXT,
-      },
-      {
-        field: 'documentDataEntry',
-        prompt: 'Depois de encontrar essa informação, alguém precisa digitá-la ou transferi-la para outro lugar?',
-        type: 'radio',
-        options: YES_NO_SOMETIMES,
-      },
-    ],
-  },
-  {
-    id: 'E1',
-    block: 'Texto e comunicação',
-    questions: [
-      {
-        field: 'repeatedWritingTasks',
-        prompt: 'Qual tarefa exige escrever praticamente a mesma coisa várias vezes?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
-        helpText: 'Exemplos: propostas, e-mails, mensagens, relatórios, comunicados, respostas.',
-      },
-    ],
-  },
-  {
-    id: 'E2',
-    block: 'Texto e comunicação',
-    condition: (interview) => isFollowUpWorthy(interview.repeatedWritingTasks),
-    questions: [
-      {
-        field: 'writingVariation',
-        prompt: 'O que muda de uma vez para outra e o que permanece igual?',
-        type: 'textarea',
-        maxLength: MAX_SHORT_TEXT,
-      },
-    ],
-  },
+
+  // Bloco F — Documentos
   {
     id: 'F1',
-    block: 'Pesquisa e informação',
+    block: 'Documentos',
     questions: [
-      {
-        field: 'informationSearchTasks',
-        prompt: 'Qual tarefa exige procurar informações antes de responder alguém?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
-      },
+      { field: 'hasDocuments', prompt: 'Essa área trabalha com muitos documentos?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
     ],
   },
   {
     id: 'F2',
-    block: 'Pesquisa e informação',
-    condition: (interview) => isFollowUpWorthy(interview.informationSearchTasks),
+    block: 'Documentos',
+    condition: (interview) => interview.hasDocuments === 'Sim',
     questions: [
+      { field: 'documentTypes', prompt: 'Que tipos de documentos?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'documentArrival', prompt: 'Como esses documentos chegam?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+    ],
+  },
+  {
+    id: 'F3',
+    block: 'Documentos',
+    condition: (interview) => interview.hasDocuments === 'Sim',
+    questions: [
+      { field: 'someoneReadsDocuments', prompt: 'Alguém precisa ler esses documentos?', type: 'radio', options: YES_NO_UNKNOWN },
       {
-        field: 'informationSources',
-        prompt: 'Onde essa informação costuma estar?',
-        type: 'multiselect',
-        options: INFORMATION_SOURCES,
-      },
-      {
-        field: 'informationSearchTime',
-        prompt: 'Quanto tempo aproximadamente é gasto procurando essa informação?',
-        type: 'select',
-        options: SEARCH_TIME_OPTIONS,
+        field: 'documentExtraction',
+        prompt: 'O que normalmente precisa ser encontrado ou retirado deles?',
+        type: 'textarea',
+        maxLength: MAX_SHORT_TEXT,
       },
     ],
   },
   {
-    id: 'G1',
-    block: 'Retrabalho',
+    id: 'F4',
+    block: 'Documentos',
+    condition: (interview) => interview.hasDocuments === 'Sim',
     questions: [
-      { field: 'reworkProcess', prompt: 'Qual processo costuma gerar mais retrabalho?', type: 'textarea', maxLength: MAX_TEXT },
+      {
+        field: 'documentDataEntryAfter',
+        prompt: 'Depois alguém precisa digitar ou transferir essas informações?',
+        type: 'radio',
+        options: YES_NO_UNKNOWN,
+      },
+      { field: 'documentReview', prompt: 'Existe conferência?', type: 'radio', options: YES_NO_UNKNOWN },
+    ],
+  },
+  {
+    id: 'F5',
+    block: 'Documentos',
+    condition: (interview) => interview.hasDocuments === 'Sim',
+    questions: [
+      { field: 'documentVolume', prompt: 'Qual é aproximadamente o volume de documentos?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+    ],
+  },
+
+  // Bloco G — Escrita repetitiva
+  {
+    id: 'G1',
+    block: 'Escrita repetitiva',
+    questions: [
+      {
+        field: 'hasRepeatedWriting',
+        prompt: 'Essa área precisa escrever mensagens, e-mails, relatórios ou documentos parecidos repetidamente?',
+        type: 'radio',
+        options: YES_NO_UNKNOWN,
+        required: true,
+      },
     ],
   },
   {
     id: 'G2',
-    block: 'Retrabalho',
-    condition: (interview) => isFollowUpWorthy(interview.reworkProcess),
+    block: 'Escrita repetitiva',
+    condition: (interview) => interview.hasRepeatedWriting === 'Sim',
     questions: [
-      { field: 'reworkReason', prompt: 'Por que esse retrabalho acontece?', type: 'multiselect', options: REWORK_REASONS },
+      { field: 'writingContent', prompt: 'O que normalmente precisa ser escrito?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      {
+        field: 'writingStandardization',
+        prompt: 'Esses textos são praticamente iguais ou precisam ser personalizados?',
+        type: 'select',
+        options: WRITING_STANDARDIZATION_OPTIONS,
+      },
     ],
   },
   {
+    id: 'G3',
+    block: 'Escrita repetitiva',
+    condition: (interview) => interview.hasRepeatedWriting === 'Sim',
+    questions: [
+      { field: 'writingWho', prompt: 'Quem normalmente escreve?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'writingFrequency', prompt: 'Com que frequência?', type: 'select', options: TRANSFER_FREQUENCY_OPTIONS },
+    ],
+  },
+
+  // Bloco H — Pesquisa e busca de informação
+  {
     id: 'H1',
-    block: 'Erros',
+    block: 'Pesquisa e busca de informação',
     questions: [
       {
-        field: 'errorProneTasks',
-        prompt: 'Onde acontecem mais erros, esquecimentos ou atrasos?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
+        field: 'hasInformationSearch',
+        prompt: 'Existe alguma tarefa em que alguém precisa procurar informações antes de conseguir responder ou executar algo?',
+        type: 'radio',
+        options: YES_NO_UNKNOWN,
+        required: true,
       },
     ],
   },
   {
     id: 'H2',
-    block: 'Erros',
-    condition: (interview) => isFollowUpWorthy(interview.errorProneTasks),
+    block: 'Pesquisa e busca de informação',
+    condition: (interview) => interview.hasInformationSearch === 'Sim',
+    questions: [
+      { field: 'searchWhat', prompt: 'O que precisa ser procurado?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'searchWhere', prompt: 'Onde essa informação está?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+    ],
+  },
+  {
+    id: 'H3',
+    block: 'Pesquisa e busca de informação',
+    condition: (interview) => interview.hasInformationSearch === 'Sim',
+    questions: [
+      { field: 'searchTime', prompt: 'Quanto tempo normalmente é gasto procurando?', type: 'select', options: SEARCH_TIME_OPTIONS },
+      { field: 'searchWho', prompt: 'Quem procura?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+    ],
+  },
+  {
+    id: 'H4',
+    block: 'Pesquisa e busca de informação',
+    condition: (interview) => interview.hasInformationSearch === 'Sim',
     questions: [
       {
+        field: 'searchConcentration',
+        prompt: 'As informações estão concentradas em um lugar ou espalhadas?',
+        type: 'select',
+        options: INFORMATION_CONCENTRATION_OPTIONS,
+      },
+      {
+        field: 'searchAskOthers',
+        prompt: 'É comum precisar perguntar para outra pessoa onde encontrar determinada informação?',
+        type: 'radio',
+        options: YES_NO_UNKNOWN,
+      },
+    ],
+  },
+
+  // Bloco I — Retrabalho
+  {
+    id: 'I1',
+    block: 'Retrabalho',
+    questions: [{ field: 'reworkTasks', prompt: 'Quais tarefas precisam ser refeitas?', type: 'textarea', maxLength: MAX_TEXT }],
+  },
+  {
+    id: 'I2',
+    block: 'Retrabalho',
+    condition: (interview) => isFollowUpWorthy(interview.reworkTasks),
+    questions: [{ field: 'reworkCause', prompt: 'Por que elas precisam ser refeitas?', type: 'multiselect', options: REWORK_CAUSES }],
+  },
+  {
+    id: 'I3',
+    block: 'Retrabalho',
+    condition: (interview) => !!interview.reworkCause?.includes('outro'),
+    questions: [{ field: 'reworkCauseOther', prompt: 'Explique.', type: 'textarea', maxLength: MAX_SHORT_TEXT }],
+  },
+
+  // Bloco J — Erros e conferências
+  {
+    id: 'J1',
+    block: 'Erros e conferências',
+    questions: [{ field: 'errorProcesses', prompt: 'Em quais processos costumam acontecer erros?', type: 'textarea', maxLength: MAX_TEXT }],
+  },
+  {
+    id: 'J2',
+    block: 'Erros e conferências',
+    condition: (interview) => isFollowUpWorthy(interview.errorProcesses),
+    questions: [
+      { field: 'errorType', prompt: 'Que tipo de erro acontece?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'errorFrequency', prompt: 'Com que frequência?', type: 'select', options: TRANSFER_FREQUENCY_OPTIONS },
+    ],
+  },
+  {
+    id: 'J3',
+    block: 'Erros e conferências',
+    condition: (interview) => isFollowUpWorthy(interview.errorProcesses),
+    questions: [
+      { field: 'errorDiscovery', prompt: 'Como esses erros são descobertos?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      {
         field: 'errorConsequence',
-        prompt: 'O que normalmente acontece quando esse erro ocorre?',
+        prompt: 'O que acontece depois que o erro é descoberto?',
         type: 'textarea',
         maxLength: MAX_SHORT_TEXT,
       },
     ],
   },
   {
-    id: 'I1',
-    block: 'Conferência',
-    questions: [
-      {
-        field: 'manualReviewTasks',
-        prompt: 'Onde uma pessoa precisa conferir o trabalho que outra acabou de fazer?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
-      },
-    ],
+    id: 'J4',
+    block: 'Erros e conferências',
+    questions: [{ field: 'reviewTasks', prompt: 'Quais tarefas precisam passar por conferência?', type: 'textarea', maxLength: MAX_TEXT }],
   },
   {
-    id: 'I2',
-    block: 'Conferência',
-    condition: (interview) => isFollowUpWorthy(interview.manualReviewTasks),
+    id: 'J5',
+    block: 'Erros e conferências',
+    condition: (interview) => isFollowUpWorthy(interview.reviewTasks),
     questions: [
-      { field: 'reviewCriteria', prompt: 'O que exatamente essa pessoa confere?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'reviewWhat', prompt: 'O que é conferido?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'reviewWho', prompt: 'Quem confere?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
     ],
   },
+
+  // Bloco K — Dependência de pessoas
   {
-    id: 'J1',
+    id: 'K1',
     block: 'Dependência de pessoas',
     questions: [
       {
@@ -278,10 +433,11 @@ export const AREA_INTERVIEW_STEPS: InterviewStep[] = [
     ],
   },
   {
-    id: 'J2',
+    id: 'K2',
     block: 'Dependência de pessoas',
     condition: (interview) => interview.keyPersonDependency === 'Sim',
     questions: [
+      { field: 'dependencyProcess', prompt: 'Qual processo depende dessa pessoa?', type: 'textarea', maxLength: MAX_SHORT_TEXT, required: true },
       {
         field: 'dependencyDescription',
         prompt: 'O que essa pessoa sabe ou faz que torna o processo dependente dela?',
@@ -291,120 +447,155 @@ export const AREA_INTERVIEW_STEPS: InterviewStep[] = [
       },
     ],
   },
+
+  // Bloco L — Tentativas anteriores
   {
-    id: 'K1',
-    block: 'Eliminação',
+    id: 'L1',
+    block: 'Tentativas anteriores',
     questions: [
       {
-        field: 'taskToEliminate',
-        prompt: 'Se você pudesse eliminar uma tarefa dessa área amanhã, qual seria?',
-        type: 'textarea',
-        maxLength: MAX_TEXT,
+        field: 'previousAttempts',
+        prompt: 'Vocês já tentaram melhorar, automatizar ou resolver esse processo?',
+        type: 'select',
+        options: PREVIOUS_ATTEMPT_OPTIONS,
+        required: true,
       },
     ],
   },
   {
-    id: 'K2',
-    block: 'Eliminação',
-    condition: (interview) => isFollowUpWorthy(interview.taskToEliminate),
+    id: 'L2',
+    block: 'Tentativas anteriores',
+    condition: isPositiveAttempt,
     questions: [
-      { field: 'eliminationReason', prompt: 'Por que escolheria justamente essa?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      { field: 'previousAttemptsWhat', prompt: 'O que vocês tentaram fazer?', type: 'textarea', maxLength: MAX_SHORT_TEXT },
+      {
+        field: 'previousAttemptsWhyNotSolved',
+        prompt: 'Por que você acha que não resolveu completamente?',
+        type: 'textarea',
+        maxLength: MAX_SHORT_TEXT,
+      },
+    ],
+  },
+
+  // Bloco M — Impacto
+  {
+    id: 'M1',
+    block: 'Impacto',
+    questions: [
+      {
+        field: 'impact',
+        prompt: 'Quando esse processo atrasa, dá erro ou precisa ser refeito, qual é o impacto para a empresa?',
+        type: 'multiselect',
+        options: IMPACT_OPTIONS,
+        required: true,
+      },
     ],
   },
   {
-    id: 'RISK',
-    block: 'Dados e risco',
+    id: 'M2',
+    block: 'Impacto',
+    condition: (interview) => !!interview.impact?.includes('outro'),
+    questions: [{ field: 'impactOther', prompt: 'Explique.', type: 'textarea', maxLength: MAX_SHORT_TEXT }],
+  },
+
+  // Bloco N — Resultado final
+  {
+    id: 'N1',
+    block: 'Resultado final',
     questions: [
-      { field: 'risk.personalData', prompt: 'Essa área lida com dados pessoais?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
-      { field: 'risk.financialData', prompt: 'Lida com dados financeiros?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
-      { field: 'risk.customerData', prompt: 'Lida com dados de clientes?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
-      { field: 'risk.employeeData', prompt: 'Lida com dados de funcionários?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
+      {
+        field: 'finalResult',
+        prompt: 'Quando esse processo termina corretamente, o que precisa estar pronto?',
+        type: 'textarea',
+        maxLength: MAX_TEXT,
+        helpText: 'Pode ser um relatório, pagamento realizado, cadastro atualizado, cliente respondido, documento lançado, informação registrada etc.',
+      },
+    ],
+  },
+
+  // Bloco O — Dados e segurança
+  {
+    id: 'O1',
+    block: 'Dados e segurança',
+    questions: [
+      { field: 'risk.personalData', prompt: 'Esse processo envolve dados pessoais?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
+      { field: 'risk.financialData', prompt: 'Envolve dados financeiros?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
+      { field: 'risk.customerData', prompt: 'Envolve dados de clientes?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
+      { field: 'risk.employeeData', prompt: 'Envolve dados de funcionários?', type: 'radio', options: YES_NO_UNKNOWN, required: true },
       {
         field: 'risk.confidentialData',
-        prompt: 'Lida com informações confidenciais ou estratégicas?',
+        prompt: 'Envolve informações confidenciais?',
         type: 'radio',
         options: YES_NO_UNKNOWN,
         required: true,
       },
     ],
   },
+
+  // Observações
   {
     id: 'NOTES',
     block: 'Observações',
     questions: [
-      {
-        field: 'additionalNotes',
-        prompt: 'Alguma observação adicional sobre esta área? (opcional)',
-        type: 'textarea',
-        maxLength: MAX_SHORT_TEXT * 2,
-      },
+      { field: 'additionalNotes', prompt: 'Existe alguma observação importante?', type: 'textarea', maxLength: MAX_SHORT_TEXT * 2 },
     ],
   },
 ]
 
-/** Dicas por área, adaptadas do banco de perguntas do material original (SPEC V2 §52). */
-export const AREA_HINTS: Record<string, string[]> = {
-  Financeiro: [
-    'Quais lançamentos são feitos manualmente?',
-    'Onde há conferência entre sistemas?',
-    'Quais relatórios são montados manualmente?',
-    'Onde existem erros de digitação?',
-    'Que informação é buscada antes de responder à gestão?',
-  ],
-  Comercial: [
-    'Quantas propostas parecidas são feitas?',
-    'Onde o vendedor procura informações?',
-    'Quais dados são preenchidos manualmente?',
-    'Quais follow-ups são repetitivos?',
-    'Onde existe retrabalho entre vendas e outras áreas?',
-  ],
-  Atendimento: [
-    'Quais perguntas mais se repetem?',
-    'Quais respostas são praticamente iguais?',
-    'Quais solicitações precisam ser direcionadas?',
-    'Quanto tempo se perde procurando informação?',
-    'Onde há retrabalho por respostas incompletas?',
-  ],
-  Operações: [
-    'Quais tarefas manuais se repetem diariamente?',
-    'Onde existe transcrição de dados?',
-    'Quais conferências são manuais?',
-    'Quais relatórios são montados manualmente?',
-    'Onde o conhecimento está concentrado?',
-  ],
-  Administrativo: [
-    'Quais documentos são organizados manualmente?',
-    'Onde há preenchimento repetitivo?',
-    'Quais e-mails são padronizados?',
-    'Que informação é procurada repetidamente?',
-    'Onde existe falta de padronização?',
-  ],
-  Compras: [
-    'Quais cotações são comparadas manualmente?',
-    'Onde há transcrição de pedidos?',
-    'Que informações de fornecedores são buscadas?',
-    'Quais aprovações dependem de conferência?',
-    'Onde ocorrem erros?',
-  ],
-  Logística: [
-    'Quais planilhas são atualizadas manualmente?',
-    'Onde há conferência de entregas?',
-    'Quais relatórios de status são repetitivos?',
-    'Onde há cópia entre sistemas?',
-    'Quais tarefas dependem de uma pessoa?',
-  ],
-  Gestão: [
-    'Que informações são reunidas manualmente para decisões?',
-    'Onde dados demoram para virar informação?',
-    'Quais materiais são preparados repetidamente?',
-    'Quais análises são refeitas?',
-    'Onde falta visibilidade?',
-  ],
-}
-
-export function getAreaHints(area: string): string[] {
-  return AREA_HINTS[area] ?? []
-}
+/**
+ * Entrevista rápida — 10 perguntas fixas, sem desdobramentos condicionais
+ * (SPEC V3 §8), usada para áreas complementares quando o usuário escolhe
+ * "análise rápida".
+ */
+export const QUICK_INTERVIEW_STEPS: InterviewStep[] = [
+  {
+    id: 'Q1',
+    block: 'Principais tarefas',
+    questions: [
+      { field: 'mainTasks', prompt: 'Quais são as principais tarefas dessa área?', type: 'textarea', maxLength: MAX_TEXT },
+      { field: 'mostTimeConsumingTask', prompt: 'Qual tarefa mais consome tempo?', type: 'textarea', maxLength: MAX_TEXT },
+      {
+        field: 'taskToEliminate',
+        prompt: 'Qual tarefa você gostaria de eliminar ou simplificar?',
+        type: 'textarea',
+        maxLength: MAX_TEXT,
+      },
+    ],
+  },
+  {
+    id: 'Q2',
+    block: 'Processo atual',
+    questions: [
+      { field: 'currentProcessSummary', prompt: 'Como essa tarefa é feita atualmente?', type: 'textarea', maxLength: MAX_TEXT },
+    ],
+  },
+  {
+    id: 'Q3',
+    block: 'Ferramentas',
+    questions: [{ field: 'tools', prompt: 'Quais ferramentas ou sistemas são utilizados?', type: 'multiselect', options: TOOL_OPTIONS }],
+  },
+  {
+    id: 'Q3B',
+    block: 'Ferramentas',
+    condition: (interview) => !!interview.tools?.includes('Outro'),
+    questions: [{ field: 'toolsOther', prompt: 'Qual?', type: 'textarea', maxLength: MAX_SHORT_TEXT }],
+  },
+  {
+    id: 'Q4',
+    block: 'Sinais rápidos',
+    questions: [
+      { field: 'hasInformationTransfer', prompt: 'Existe transferência manual de informações?', type: 'radio', options: YES_NO_UNKNOWN },
+      { field: 'hasReworkOrErrors', prompt: 'Existe retrabalho ou erro?', type: 'radio', options: YES_NO_UNKNOWN },
+      { field: 'keyPersonDependency', prompt: 'Alguma pessoa é indispensável para esse processo?', type: 'radio', options: YES_NO_UNKNOWN },
+      { field: 'hasDocuments', prompt: 'Existem documentos envolvidos?', type: 'radio', options: YES_NO_UNKNOWN },
+    ],
+  },
+  {
+    id: 'Q5',
+    block: 'Observações',
+    questions: [{ field: 'additionalNotes', prompt: 'Existe alguma observação importante?', type: 'textarea', maxLength: MAX_SHORT_TEXT * 2 }],
+  },
+]
 
 function isRiskField(field: QuestionFieldPath): field is `risk.${keyof AreaRiskAnswers}` {
   return field.startsWith('risk.')
@@ -443,7 +634,8 @@ export function validateStepAnswers(step: InterviewStep, interview: Partial<Area
   return errors
 }
 
-/** Passos aplicáveis dado o estado atual das respostas (SPEC V2 §50 — perguntas condicionais). */
+/** Passos aplicáveis dado o estado atual das respostas e o modo da entrevista (SPEC V3 §6, §8, §9). */
 export function getApplicableSteps(interview: Partial<AreaInterview>): InterviewStep[] {
-  return AREA_INTERVIEW_STEPS.filter((step) => !step.condition || step.condition(interview))
+  const steps = interview.depth === 'RAPIDA' ? QUICK_INTERVIEW_STEPS : DEEP_INTERVIEW_STEPS
+  return steps.filter((step) => !step.condition || step.condition(interview))
 }

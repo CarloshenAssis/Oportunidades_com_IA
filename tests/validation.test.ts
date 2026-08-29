@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { diagnosticRequestSchema } from '@/lib/validation/diagnostic'
 import { FIELD_LIMITS } from '@/lib/config/limits'
-import { MAX_PRIORITY_AREAS } from '@/types/diagnostic'
-import { makeValidAreaInterview, makeValidRequest } from './fixtures'
+import { MAX_AREAS } from '@/types/diagnostic'
+import { makeValidAreaInterview, makeValidComplementaryInterview, makeValidRequest } from './fixtures'
 
 describe('diagnosticRequestSchema', () => {
   it('aceita um formulário válido', () => {
@@ -67,7 +67,7 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('aceita blocos A–K em branco (não obriga a inventar tarefas)', () => {
+  it('aceita os blocos aprofundados em branco (não obriga a inventar tarefas)', () => {
     const valid = makeValidRequest({
       interviews: [
         makeValidAreaInterview({
@@ -75,10 +75,11 @@ describe('diagnosticRequestSchema', () => {
           weeklyRepetitiveTasks: '',
           monthlyRepetitiveTasks: '',
           mostTimeConsumingTask: '',
-          taskTheyWouldEliminate: '',
-          copyPasteTasks: '',
-          documentTasks: '',
+          taskToEliminate: '',
+          reworkTasks: '',
+          errorProcesses: '',
           keyPersonDependency: 'Não',
+          dependencyProcess: '',
           dependencyDescription: '',
         }),
       ],
@@ -87,9 +88,9 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('exige a descrição da dependência quando keyPersonDependency é "Sim"', () => {
+  it('exige o processo e a descrição da dependência quando keyPersonDependency é "Sim"', () => {
     const invalid = makeValidRequest({
-      interviews: [makeValidAreaInterview({ keyPersonDependency: 'Sim', dependencyDescription: '' })],
+      interviews: [makeValidAreaInterview({ keyPersonDependency: 'Sim', dependencyProcess: '', dependencyDescription: '' })],
     })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
@@ -103,34 +104,72 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejeita mais de MAX_PRIORITY_AREAS áreas prioritárias', () => {
+  it('rejeita mais de MAX_AREAS entrevistas', () => {
     const invalid = makeValidRequest({
       areas: ['Financeiro', 'Comercial', 'Atendimento', 'Operações'],
-      priorityAreas: [
-        { area: 'Financeiro', reason: 'x' },
-        { area: 'Comercial', reason: 'x' },
-        { area: 'Atendimento', reason: 'x' },
-        { area: 'Operações', reason: 'x' },
+      interviews: [
+        makeValidAreaInterview({ area: 'Financeiro' }),
+        makeValidComplementaryInterview('Comercial', 'RAPIDA'),
+        makeValidComplementaryInterview('Atendimento', 'RAPIDA'),
+        makeValidComplementaryInterview('Operações', 'RAPIDA'),
       ],
     })
-    expect(invalid.priorityAreas.length).toBeGreaterThan(MAX_PRIORITY_AREAS)
+    expect(invalid.interviews.length).toBeGreaterThan(MAX_AREAS)
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })
 
-  it('rejeita área prioritária que não está entre as áreas selecionadas', () => {
+  it('rejeita área de entrevista que não está entre as áreas selecionadas', () => {
     const invalid = makeValidRequest({
       areas: ['Financeiro'],
-      priorityAreas: [{ area: 'Comercial', reason: 'x' }],
       interviews: [makeValidAreaInterview({ area: 'Comercial' })],
     })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
   })
 
-  it('rejeita quando o número de entrevistas não bate com as áreas prioritárias', () => {
+  it('rejeita quando não há nenhuma entrevista (a área 1 é obrigatória)', () => {
     const invalid = makeValidRequest({ interviews: [] })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
+  })
+
+  it('rejeita quando a primeira entrevista não é prioritária/aprofundada', () => {
+    const invalid = makeValidRequest({
+      interviews: [makeValidComplementaryInterview('Financeiro', 'RAPIDA')],
+    })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita quando uma área além da primeira é marcada como prioritária', () => {
+    const invalid = makeValidRequest({
+      interviews: [
+        makeValidAreaInterview({ area: 'Financeiro' }),
+        { ...makeValidComplementaryInterview('Atendimento', 'RAPIDA'), role: 'PRIORITARIA' },
+      ],
+    })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita quando a mesma área é analisada duas vezes', () => {
+    const invalid = makeValidRequest({
+      interviews: [makeValidAreaInterview({ area: 'Financeiro' }), makeValidComplementaryInterview('Financeiro', 'RAPIDA')],
+    })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('aceita 3 áreas distintas, cada uma com sua própria profundidade', () => {
+    const valid = makeValidRequest({
+      interviews: [
+        makeValidAreaInterview({ area: 'Financeiro' }),
+        makeValidComplementaryInterview('Atendimento', 'RAPIDA'),
+        makeValidComplementaryInterview('Comercial', 'APROFUNDADA'),
+      ],
+    })
+    const result = diagnosticRequestSchema.safeParse(valid)
+    expect(result.success).toBe(true)
   })
 })

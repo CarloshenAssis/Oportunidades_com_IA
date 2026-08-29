@@ -8,27 +8,15 @@ type Props = {
   interview: AreaInterview
   errors: Record<string, string>
   onChange: (next: AreaInterview) => void
-  hints?: string[]
 }
 
-export function InterviewStepForm({ step, interview, errors, onChange, hints }: Props) {
+export function InterviewStepForm({ step, interview, errors, onChange }: Props) {
   function handleChange(field: QuestionDef['field'], value: unknown) {
     onChange(setFieldValue(interview, field, value))
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {step.id === 'A' && hints && hints.length > 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
-          <p className="mb-2 font-semibold text-primary">Perguntas que podem ajudar a pensar nessa área:</p>
-          <ul className="list-disc space-y-1 pl-5">
-            {hints.map((hint) => (
-              <li key={hint}>{hint}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       {step.questions.map((question) => {
         const value = getFieldValue(interview, question.field)
         const error = errors[question.field]

@@ -1,18 +1,22 @@
 import { z } from 'zod'
 import { FIELD_LIMITS } from '@/lib/config/limits'
 import { normalizePhoneToDigits, isValidPhoneDigits } from '@/lib/whatsapp/message'
-import { CANDIDATE_SOURCE_FIELDS } from '@/lib/diagnostic/scoring'
 import {
   EMPLOYEE_RANGES,
-  INFORMATION_SOURCES,
-  MAX_PRIORITY_AREAS,
-  REWORK_REASONS,
+  IMPACT_OPTIONS,
+  INFORMATION_CONCENTRATION_OPTIONS,
+  MAX_AREAS,
+  PREVIOUS_ATTEMPT_OPTIONS,
+  REWORK_CAUSES,
   SEARCH_TIME_OPTIONS,
   SEGMENTS,
+  TOOL_OPTIONS,
   TRANSFER_FREQUENCY_OPTIONS,
-  YES_NO_SOMETIMES,
+  WRITING_STANDARDIZATION_OPTIONS,
   YES_NO_UNKNOWN,
+  type AreaDepth,
   type AreaInterview,
+  type AreaRole,
   type CompanyMap,
   type ContactData,
 } from '@/types/diagnostic'
@@ -34,10 +38,19 @@ const optionalText = (max: number) =>
 
 /**
  * Campo sempre presente no objeto (tipo `string`, nunca `string | undefined`),
- * mas cujo conteúdo pode ficar em branco — os blocos A–K nunca obrigam o
- * usuário a inventar uma tarefa (SPEC V2 §55).
+ * mas cujo conteúdo pode ficar em branco — a entrevista nunca obriga o
+ * usuário a inventar uma tarefa (SPEC V3 §24).
  */
 const blankableText = (max: number) => z.string().trim().max(max, `Máximo de ${max} caracteres.`)
+
+/** Pergunta de sim/não/não sei opcional no schema — a obrigatoriedade real é aplicada por etapa (ver questions.ts). */
+const optionalGate = () => z.enum(YES_NO_UNKNOWN).optional().or(z.literal(''))
+
+/**
+ * Pergunta de sim/não/não sei presente nos dois modos (rápido e aprofundado) — o campo em si
+ * nunca fica ausente no tipo `AreaInterview` (pode ficar `''`, mas a chave sempre existe).
+ */
+const requiredGate = () => z.enum(YES_NO_UNKNOWN).or(z.literal(''))
 
 export const companySchema = z
   .object({
@@ -52,11 +65,6 @@ export const companySchema = z
     path: ['segmentOther'],
   })
 
-export const priorityAreaSchema = z.object({
-  area: requiredText(FIELD_LIMITS.areaName),
-  reason: requiredText(FIELD_LIMITS.areaReason),
-})
-
 const areaRiskSchema = z.object({
   personalData: z.enum(YES_NO_UNKNOWN, { message: 'Selecione uma opção.' }),
   financialData: z.enum(YES_NO_UNKNOWN, { message: 'Selecione uma opção.' }),
@@ -66,62 +74,121 @@ const areaRiskSchema = z.object({
 })
 
 const quantitativeSizingSchema = z.object({
-  sourceField: z.enum(CANDIDATE_SOURCE_FIELDS),
-  taskLabel: requiredText(FIELD_LIMITS.longAnswer),
+  // Escolher uma tarefa é opcional (SPEC V3 §7) — o usuário pode preencher outros
+  // campos de dimensionamento (ex.: pico sazonal) sem ter escolhido uma tarefa.
+  taskLabel: blankableText(FIELD_LIMITS.longAnswer),
+  sourceField: optionalText(FIELD_LIMITS.areaName),
   peopleCount: z.number().positive().max(100_000).optional(),
   executionFrequency: z.enum(TRANSFER_FREQUENCY_OPTIONS).optional().or(z.literal('')),
   minutesPerExecution: z.number().positive().max(100_000).optional(),
-  executionVariation: optionalText(FIELD_LIMITS.shortAnswer),
   monthlyExecutions: z.number().nonnegative().max(1_000_000).nullable().optional(),
+  executionVariation: optionalText(FIELD_LIMITS.shortAnswer),
+  hasSeasonalPeak: optionalGate(),
+  seasonalPeakDescription: optionalText(FIELD_LIMITS.shortAnswer),
 })
 
 export const areaInterviewSchema = z
   .object({
     area: requiredText(FIELD_LIMITS.areaName),
+    role: z.enum(['PRIORITARIA', 'COMPLEMENTAR']),
+    depth: z.enum(['RAPIDA', 'APROFUNDADA']),
 
-    dailyRepetitiveTasks: blankableText(FIELD_LIMITS.longAnswer),
-    weeklyRepetitiveTasks: blankableText(FIELD_LIMITS.longAnswer),
-    monthlyRepetitiveTasks: blankableText(FIELD_LIMITS.longAnswer),
-
+    // Campos comuns (rápido + aprofundado)
+    mainTasks: blankableText(FIELD_LIMITS.longAnswer),
     mostTimeConsumingTask: blankableText(FIELD_LIMITS.longAnswer),
-    taskTheyWouldEliminate: blankableText(FIELD_LIMITS.longAnswer),
-    taskPainReason: optionalText(FIELD_LIMITS.shortAnswer),
-
-    copyPasteTasks: blankableText(FIELD_LIMITS.longAnswer),
-    informationTransfer: optionalText(FIELD_LIMITS.shortAnswer),
-    transferFrequency: z.enum(TRANSFER_FREQUENCY_OPTIONS).optional().or(z.literal('')),
-
-    documentTasks: blankableText(FIELD_LIMITS.longAnswer),
-    documentExtraction: optionalText(FIELD_LIMITS.shortAnswer),
-    documentDataEntry: z.enum(YES_NO_SOMETIMES).optional().or(z.literal('')),
-
-    repeatedWritingTasks: blankableText(FIELD_LIMITS.longAnswer),
-    writingVariation: optionalText(FIELD_LIMITS.shortAnswer),
-
-    informationSearchTasks: blankableText(FIELD_LIMITS.longAnswer),
-    informationSources: z.array(z.enum(INFORMATION_SOURCES)).optional(),
-    informationSearchTime: z.enum(SEARCH_TIME_OPTIONS).optional().or(z.literal('')),
-
-    reworkProcess: blankableText(FIELD_LIMITS.longAnswer),
-    reworkReason: z.array(z.enum(REWORK_REASONS)).optional(),
-
-    errorProneTasks: blankableText(FIELD_LIMITS.longAnswer),
-    errorConsequence: optionalText(FIELD_LIMITS.shortAnswer),
-
-    manualReviewTasks: blankableText(FIELD_LIMITS.longAnswer),
-    reviewCriteria: optionalText(FIELD_LIMITS.shortAnswer),
-
-    keyPersonDependency: z.enum(YES_NO_UNKNOWN, { message: 'Selecione uma opção.' }),
-    dependencyDescription: optionalText(FIELD_LIMITS.shortAnswer),
-
     taskToEliminate: blankableText(FIELD_LIMITS.longAnswer),
     eliminationReason: optionalText(FIELD_LIMITS.shortAnswer),
 
-    risk: areaRiskSchema,
+    currentProcessSummary: blankableText(FIELD_LIMITS.longAnswer),
+
+    tools: z.array(z.enum(TOOL_OPTIONS)),
+    toolsOther: optionalText(FIELD_LIMITS.shortAnswer),
+    toolsExchangeInfo: optionalGate(),
+    toolsExchangeDescription: optionalText(FIELD_LIMITS.shortAnswer),
+
+    hasInformationTransfer: requiredGate(),
+    informationSource: optionalText(FIELD_LIMITS.shortAnswer),
+    informationDestination: optionalText(FIELD_LIMITS.shortAnswer),
+    informationTransferWho: optionalText(FIELD_LIMITS.shortAnswer),
+    informationTransferFrequency: z.enum(TRANSFER_FREQUENCY_OPTIONS).optional().or(z.literal('')),
+    informationTransferManualEntry: optionalGate(),
+    informationTransferReview: optionalGate(),
+
+    hasReworkOrErrors: optionalGate(),
+
+    keyPersonDependency: requiredGate(),
+    dependencyProcess: optionalText(FIELD_LIMITS.shortAnswer),
+    dependencyDescription: optionalText(FIELD_LIMITS.shortAnswer),
+
+    hasDocuments: requiredGate(),
+    documentTypes: optionalText(FIELD_LIMITS.shortAnswer),
+    documentArrival: optionalText(FIELD_LIMITS.shortAnswer),
+    someoneReadsDocuments: optionalGate(),
+    documentExtraction: optionalText(FIELD_LIMITS.shortAnswer),
+    documentDataEntryAfter: optionalGate(),
+    documentReview: optionalGate(),
+    documentVolume: optionalText(FIELD_LIMITS.shortAnswer),
+
+    additionalNotes: optionalText(FIELD_LIMITS.additionalNotes),
+
+    // Somente modo aprofundado
+    dailyRepetitiveTasks: optionalText(FIELD_LIMITS.longAnswer),
+    weeklyRepetitiveTasks: optionalText(FIELD_LIMITS.longAnswer),
+    monthlyRepetitiveTasks: optionalText(FIELD_LIMITS.longAnswer),
+    multipleTimesPerDay: optionalText(FIELD_LIMITS.longAnswer),
+
+    processStart: optionalText(FIELD_LIMITS.longAnswer),
+    processSteps: optionalText(FIELD_LIMITS.longAnswer),
+    processPeople: optionalText(FIELD_LIMITS.shortAnswer),
+    processManualWork: optionalText(FIELD_LIMITS.longAnswer),
+    processDecisions: optionalText(FIELD_LIMITS.longAnswer),
+    processEnd: optionalText(FIELD_LIMITS.shortAnswer),
+    processResult: optionalText(FIELD_LIMITS.shortAnswer),
+
+    hasRepeatedWriting: optionalGate(),
+    writingContent: optionalText(FIELD_LIMITS.shortAnswer),
+    writingStandardization: z.enum(WRITING_STANDARDIZATION_OPTIONS).optional().or(z.literal('')),
+    writingWho: optionalText(FIELD_LIMITS.shortAnswer),
+    writingFrequency: z.enum(TRANSFER_FREQUENCY_OPTIONS).optional().or(z.literal('')),
+
+    hasInformationSearch: optionalGate(),
+    searchWhat: optionalText(FIELD_LIMITS.shortAnswer),
+    searchWhere: optionalText(FIELD_LIMITS.shortAnswer),
+    searchTime: z.enum(SEARCH_TIME_OPTIONS).optional().or(z.literal('')),
+    searchWho: optionalText(FIELD_LIMITS.shortAnswer),
+    searchConcentration: z.enum(INFORMATION_CONCENTRATION_OPTIONS).optional().or(z.literal('')),
+    searchAskOthers: optionalGate(),
+
+    reworkTasks: optionalText(FIELD_LIMITS.longAnswer),
+    reworkCause: z.array(z.enum(REWORK_CAUSES)).optional(),
+    reworkCauseOther: optionalText(FIELD_LIMITS.shortAnswer),
+
+    errorProcesses: optionalText(FIELD_LIMITS.longAnswer),
+    errorType: optionalText(FIELD_LIMITS.shortAnswer),
+    errorFrequency: z.enum(TRANSFER_FREQUENCY_OPTIONS).optional().or(z.literal('')),
+    errorDiscovery: optionalText(FIELD_LIMITS.shortAnswer),
+    errorConsequence: optionalText(FIELD_LIMITS.shortAnswer),
+    reviewTasks: optionalText(FIELD_LIMITS.longAnswer),
+    reviewWhat: optionalText(FIELD_LIMITS.shortAnswer),
+    reviewWho: optionalText(FIELD_LIMITS.shortAnswer),
+
+    previousAttempts: z.enum(PREVIOUS_ATTEMPT_OPTIONS).optional().or(z.literal('')),
+    previousAttemptsWhat: optionalText(FIELD_LIMITS.shortAnswer),
+    previousAttemptsWhyNotSolved: optionalText(FIELD_LIMITS.shortAnswer),
+
+    impact: z.array(z.enum(IMPACT_OPTIONS)).optional(),
+    impactOther: optionalText(FIELD_LIMITS.shortAnswer),
+
+    finalResult: optionalText(FIELD_LIMITS.longAnswer),
+
+    risk: areaRiskSchema.optional(),
 
     quantitativeSizing: quantitativeSizingSchema.optional(),
     hourlyCost: z.number().positive().max(1_000_000).optional(),
-    additionalNotes: optionalText(FIELD_LIMITS.additionalNotes),
+  })
+  .refine((data) => data.keyPersonDependency !== 'Sim' || !!data.dependencyProcess?.trim(), {
+    message: 'Descreva qual processo depende dessa pessoa.',
+    path: ['dependencyProcess'],
   })
   .refine((data) => data.keyPersonDependency !== 'Sim' || !!data.dependencyDescription?.trim(), {
     message: 'Descreva a dependência.',
@@ -152,43 +219,47 @@ export const diagnosticRequestSchema = z
   .object({
     company: companySchema,
     areas: z.array(requiredText(FIELD_LIMITS.areaName)).min(1, 'Selecione ao menos uma área.'),
-    priorityAreas: z
-      .array(priorityAreaSchema)
-      .min(1, 'Selecione ao menos uma área prioritária.')
-      .max(MAX_PRIORITY_AREAS, `Selecione no máximo ${MAX_PRIORITY_AREAS} áreas.`),
-    interviews: z.array(areaInterviewSchema).min(1, 'Nenhuma entrevista foi respondida.'),
+    interviews: z
+      .array(areaInterviewSchema)
+      .min(1, 'A área prioritária é obrigatória.')
+      .max(MAX_AREAS, `No máximo ${MAX_AREAS} áreas podem ser investigadas.`),
     contact: contactSchema,
   })
   .superRefine((data, ctx) => {
     const areaSet = new Set(data.areas)
-    data.priorityAreas.forEach((priorityArea, index) => {
-      if (!areaSet.has(priorityArea.area)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'Área prioritária precisa estar entre as áreas selecionadas.',
-          path: ['priorityAreas', index, 'area'],
-        })
-      }
-    })
-
-    if (data.interviews.length !== data.priorityAreas.length) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'O número de entrevistas precisa corresponder ao número de áreas prioritárias.',
-        path: ['interviews'],
-      })
-    }
-
-    const priorityAreaSet = new Set(data.priorityAreas.map((priorityArea) => priorityArea.area))
     data.interviews.forEach((interview, index) => {
-      if (!priorityAreaSet.has(interview.area)) {
+      if (!areaSet.has(interview.area)) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Entrevista associada a uma área que não está entre as prioritárias.',
+          message: 'A área da entrevista precisa estar entre as áreas selecionadas.',
           path: ['interviews', index, 'area'],
         })
       }
     })
+
+    const [first, ...rest] = data.interviews
+    if (first && (first.role !== 'PRIORITARIA' || first.depth !== 'APROFUNDADA')) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A primeira área precisa ser a prioritária, sempre com entrevista aprofundada.',
+        path: ['interviews', 0, 'role'],
+      })
+    }
+    rest.forEach((interview, index) => {
+      if (interview.role !== 'COMPLEMENTAR') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Áreas além da primeira precisam ser complementares.',
+          path: ['interviews', index + 1, 'role'],
+        })
+      }
+    })
+
+    const areaNames = data.interviews.map((interview) => interview.area)
+    const hasDuplicate = areaNames.some((area, index) => areaNames.indexOf(area) !== index)
+    if (hasDuplicate) {
+      ctx.addIssue({ code: 'custom', message: 'Uma área não pode ser analisada duas vezes.', path: ['interviews'] })
+    }
   })
 
 export type DiagnosticRequestInput = z.infer<typeof diagnosticRequestSchema>
@@ -227,7 +298,7 @@ export function validateContact(data: ContactData): FieldErrors {
   return result.success ? {} : issuesToFieldErrors(result.error.issues)
 }
 
-/** Valida o payload completo e devolve o objeto pronto para POST /api/diagnostico (SPEC V2 §58). */
+/** Valida o payload completo e devolve o objeto pronto para POST /api/diagnostico (SPEC V3 §6, §11). */
 export function validateFullInterview(
   payload: unknown,
 ): { success: true; data: DiagnosticRequestInput } | { success: false; errors: FieldErrors } {
@@ -245,47 +316,110 @@ export const EMPTY_COMPANY_MAP: CompanyMap = {
   employeeRange: '',
   areas: [],
   mainBusinessActivity: '',
-  priorityAreas: [],
 }
 
-export function createEmptyAreaInterview(area: string): AreaInterview {
+export function createEmptyAreaInterview(area: string, role: AreaRole, depth: AreaDepth): AreaInterview {
   return {
     area,
+    role,
+    depth,
+
+    mainTasks: '',
+    mostTimeConsumingTask: '',
+    taskToEliminate: '',
+    eliminationReason: '',
+
+    currentProcessSummary: '',
+
+    tools: [],
+    toolsOther: '',
+    toolsExchangeInfo: '',
+    toolsExchangeDescription: '',
+
+    hasInformationTransfer: '',
+    informationSource: '',
+    informationDestination: '',
+    informationTransferWho: '',
+    informationTransferFrequency: '',
+    informationTransferManualEntry: '',
+    informationTransferReview: '',
+
+    hasReworkOrErrors: '',
+
+    keyPersonDependency: '',
+    dependencyProcess: '',
+    dependencyDescription: '',
+
+    hasDocuments: '',
+    documentTypes: '',
+    documentArrival: '',
+    someoneReadsDocuments: '',
+    documentExtraction: '',
+    documentDataEntryAfter: '',
+    documentReview: '',
+    documentVolume: '',
+
+    additionalNotes: '',
+
     dailyRepetitiveTasks: '',
     weeklyRepetitiveTasks: '',
     monthlyRepetitiveTasks: '',
-    mostTimeConsumingTask: '',
-    taskTheyWouldEliminate: '',
-    taskPainReason: '',
-    copyPasteTasks: '',
-    informationTransfer: '',
-    transferFrequency: '',
-    documentTasks: '',
-    documentExtraction: '',
-    documentDataEntry: '',
-    repeatedWritingTasks: '',
-    writingVariation: '',
-    informationSearchTasks: '',
-    informationSources: [],
-    informationSearchTime: '',
-    reworkProcess: '',
-    reworkReason: [],
-    errorProneTasks: '',
+    multipleTimesPerDay: '',
+
+    processStart: '',
+    processSteps: '',
+    processPeople: '',
+    processManualWork: '',
+    processDecisions: '',
+    processEnd: '',
+    processResult: '',
+
+    hasRepeatedWriting: '',
+    writingContent: '',
+    writingStandardization: '',
+    writingWho: '',
+    writingFrequency: '',
+
+    hasInformationSearch: '',
+    searchWhat: '',
+    searchWhere: '',
+    searchTime: '',
+    searchWho: '',
+    searchConcentration: '',
+    searchAskOthers: '',
+
+    reworkTasks: '',
+    reworkCause: [],
+    reworkCauseOther: '',
+
+    errorProcesses: '',
+    errorType: '',
+    errorFrequency: '',
+    errorDiscovery: '',
     errorConsequence: '',
-    manualReviewTasks: '',
-    reviewCriteria: '',
-    keyPersonDependency: '',
-    dependencyDescription: '',
-    taskToEliminate: '',
-    eliminationReason: '',
-    risk: {
-      personalData: '',
-      financialData: '',
-      customerData: '',
-      employeeData: '',
-      confidentialData: '',
-    },
-    additionalNotes: '',
+    reviewTasks: '',
+    reviewWhat: '',
+    reviewWho: '',
+
+    previousAttempts: '',
+    previousAttemptsWhat: '',
+    previousAttemptsWhyNotSolved: '',
+
+    impact: [],
+    impactOther: '',
+
+    finalResult: '',
+
+    risk:
+      depth === 'APROFUNDADA'
+        ? {
+            personalData: '',
+            financialData: '',
+            customerData: '',
+            employeeData: '',
+            confidentialData: '',
+          }
+        : undefined,
   }
 }
 

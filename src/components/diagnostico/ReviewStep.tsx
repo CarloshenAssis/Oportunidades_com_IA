@@ -6,22 +6,34 @@ type Props = {
   contact: ContactData
 }
 
-const AREA_FIELD_LABELS: Array<[keyof AreaInterview, string]> = [
+/** SPEC V3 §12: ÁREA PRIORITÁRIA / ÁREA COMPLEMENTAR 1 / ÁREA COMPLEMENTAR 2. */
+const AREA_LABELS = ['ÁREA PRIORITÁRIA', 'ÁREA COMPLEMENTAR 1', 'ÁREA COMPLEMENTAR 2']
+
+/** Campos comuns aos dois modos de entrevista (rápido e aprofundado). */
+const COMMON_FIELD_LABELS: Array<[keyof AreaInterview, string]> = [
+  ['mainTasks', 'Principais tarefas'],
+  ['mostTimeConsumingTask', 'Tarefa que mais consome tempo'],
+  ['taskToEliminate', 'Tarefa a eliminar ou simplificar'],
+  ['currentProcessSummary', 'Como é feito atualmente'],
+  ['hasInformationTransfer', 'Transferência manual de informações'],
+  ['keyPersonDependency', 'Dependência de pessoa específica'],
+  ['hasDocuments', 'Documentos envolvidos'],
+  ['additionalNotes', 'Observações'],
+]
+
+/** Campos exclusivos do modo aprofundado (blocos A, C, G–N). */
+const DEEP_ONLY_FIELD_LABELS: Array<[keyof AreaInterview, string]> = [
   ['dailyRepetitiveTasks', 'Tarefas diárias'],
   ['weeklyRepetitiveTasks', 'Tarefas semanais'],
   ['monthlyRepetitiveTasks', 'Tarefas mensais'],
-  ['mostTimeConsumingTask', 'Tarefa que mais consome tempo'],
-  ['taskTheyWouldEliminate', 'Tarefa que gostaria de eliminar'],
-  ['copyPasteTasks', 'Transferência de informações'],
-  ['documentTasks', 'Documentos'],
-  ['repeatedWritingTasks', 'Escrita repetitiva'],
-  ['informationSearchTasks', 'Pesquisa de informação'],
-  ['reworkProcess', 'Retrabalho'],
-  ['errorProneTasks', 'Erros'],
-  ['manualReviewTasks', 'Conferências manuais'],
-  ['keyPersonDependency', 'Dependência de pessoas'],
-  ['taskToEliminate', 'Tarefa que eliminaria amanhã'],
-  ['additionalNotes', 'Observações'],
+  ['eliminationReason', 'Por que eliminaria essa tarefa'],
+  ['processSteps', 'Principais etapas do processo'],
+  ['hasRepeatedWriting', 'Escrita repetitiva'],
+  ['hasInformationSearch', 'Busca de informações'],
+  ['reworkTasks', 'Tarefas com retrabalho'],
+  ['errorProcesses', 'Processos com erros'],
+  ['previousAttempts', 'Já tentaram resolver antes'],
+  ['finalResult', 'Resultado final esperado'],
 ]
 
 function Row({ label, value }: { label: string; value?: string }) {
@@ -47,17 +59,35 @@ export function ReviewStep({ companyMap, interviews, contact }: Props) {
           <Row label="Segmento" value={companyMap.segmentOther ? `${companyMap.segment} (${companyMap.segmentOther})` : companyMap.segment} />
           <Row label="Funcionários" value={companyMap.employeeRange} />
           <Row label="Atividade principal" value={companyMap.mainBusinessActivity} />
-          <Row label="Áreas prioritárias" value={companyMap.priorityAreas.map((p) => `${p.area} (${p.reason})`).join(' · ')} />
+          <Row
+            label="Áreas investigadas"
+            value={interviews
+              .map((interview, index) => `${AREA_LABELS[index] ?? `Área ${index + 1}`}: ${interview.area} (${interview.depth === 'APROFUNDADA' ? 'aprofundada' : 'rápida'})`)
+              .join(' · ')}
+          />
         </div>
       </section>
 
-      {interviews.map((interview) => (
+      {interviews.map((interview, index) => (
         <section key={interview.area}>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-accent">Área: {interview.area}</h2>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-accent">
+            {AREA_LABELS[index] ?? `ÁREA ${index + 1}`}: {interview.area}
+          </h2>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            Nível: {interview.depth === 'APROFUNDADA' ? 'APROFUNDADA' : 'RÁPIDA'}
+          </p>
           <div className="rounded-lg border border-border bg-surface p-4">
-            {AREA_FIELD_LABELS.map(([field, label]) => (
+            {COMMON_FIELD_LABELS.map(([field, label]) => (
               <Row key={field} label={label} value={interview[field] as string | undefined} />
             ))}
+            {interview.depth === 'APROFUNDADA'
+              ? DEEP_ONLY_FIELD_LABELS.map(([field, label]) => (
+                  <Row key={field} label={label} value={interview[field] as string | undefined} />
+                ))
+              : null}
+            {interview.quantitativeSizing?.taskLabel ? (
+              <Row label="Tarefa escolhida para dimensionar" value={interview.quantitativeSizing.taskLabel} />
+            ) : null}
           </div>
         </section>
       ))}
