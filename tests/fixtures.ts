@@ -65,8 +65,35 @@ export function makeValidComplementaryInterview(
   }
 }
 
+/** Entrevista rápida da única área do Diagnóstico Rápido — sempre role="PRIORITARIA" (SPEC — Escolha do tipo de diagnóstico). */
+export function makeValidQuickAreaInterview(overrides: Partial<AreaInterview> = {}): AreaInterview {
+  return {
+    ...createEmptyAreaInterview('Financeiro', 'PRIORITARIA', 'RAPIDA'),
+    mainTasks: 'Lançamento de notas fiscais e conciliação de pagamentos.',
+    mostTimeConsumingTask: 'Lançar notas fiscais recebidas por e-mail no sistema financeiro.',
+    taskToEliminate: 'Digitar manualmente os dados das notas fiscais.',
+    currentProcessSummary: 'Recebemos a nota por e-mail, abrimos o PDF e digitamos os dados no sistema financeiro.',
+    tools: ['E-mail', 'Sistema interno'],
+    hasInformationTransfer: 'Sim',
+    hasReworkOrErrors: 'Sim',
+    keyPersonDependency: 'Sim',
+    hasDocuments: 'Sim',
+    ...overrides,
+  }
+}
+
+/** Payload completo de exemplo para o Diagnóstico Rápido — uma única área rápida. */
+export function makeValidQuickRequest(overrides: Partial<DiagnosticRequest> = {}): DiagnosticRequest {
+  return makeValidRequest({
+    diagnosticMode: 'quick',
+    interviews: [makeValidQuickAreaInterview()],
+    ...overrides,
+  })
+}
+
 export function makeValidRequest(overrides: Partial<DiagnosticRequest> = {}): DiagnosticRequest {
   return {
+    diagnosticMode: 'complete',
     company: {
       companyName: 'Padaria Bom Pão',
       segment: 'Alimentação',

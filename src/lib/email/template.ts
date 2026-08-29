@@ -177,12 +177,18 @@ export function formatAreaBlock(interview: AreaInterview, label: string): string
   return `${SEPARATOR}\n${label}\n${SEPARATOR}\n\n${header}\n\n${body}`
 }
 
+function diagnosticModeLabel(request: DiagnosticRequest): string {
+  return request.diagnosticMode === 'quick' ? 'Diagnóstico Rápido' : 'Diagnóstico Completo'
+}
+
 export function buildDiagnosticEmailSubject(request: DiagnosticRequest): string {
-  return `Novo Diagnóstico de IA — ${request.company.companyName}`
+  return `[${diagnosticModeLabel(request)}] Nova resposta — ${request.company.companyName}`
 }
 
 export function buildDiagnosticEmailBody(request: DiagnosticRequest): string {
   const { company, interviews, contact } = request
+
+  const modeBanner = `${SEPARATOR}\n${diagnosticModeLabel(request).toUpperCase()}\n${SEPARATOR}`
 
   const header = [
     'NOVO DIAGNÓSTICO DE OPORTUNIDADES COM IA',
@@ -202,7 +208,7 @@ export function buildDiagnosticEmailBody(request: DiagnosticRequest): string {
   const areaLabels = ['ÁREA PRIORITÁRIA', 'ÁREA COMPLEMENTAR 1', 'ÁREA COMPLEMENTAR 2']
   const areaBlocks = interviews.map((interview, index) => formatAreaBlock(interview, areaLabels[index] ?? `ÁREA ${index + 1}`))
 
-  return [header, ...areaBlocks, `${SEPARATOR}\nFIM DO DIAGNÓSTICO\n${SEPARATOR}`].join('\n\n')
+  return [modeBanner, header, ...areaBlocks, `${SEPARATOR}\nFIM DO DIAGNÓSTICO\n${SEPARATOR}`].join('\n\n')
 }
 
 export function buildDiagnosticEmail(request: DiagnosticRequest): { subject: string; text: string } {

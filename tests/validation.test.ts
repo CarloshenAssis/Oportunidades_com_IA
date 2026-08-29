@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { diagnosticRequestSchema } from '@/lib/validation/diagnostic'
 import { FIELD_LIMITS } from '@/lib/config/limits'
 import { MAX_AREAS } from '@/types/diagnostic'
-import { makeValidAreaInterview, makeValidComplementaryInterview, makeValidRequest } from './fixtures'
+import {
+  makeValidAreaInterview,
+  makeValidComplementaryInterview,
+  makeValidQuickAreaInterview,
+  makeValidQuickRequest,
+  makeValidRequest,
+} from './fixtures'
 
 describe('diagnosticRequestSchema', () => {
   it('aceita um formulário válido', () => {
@@ -88,12 +94,20 @@ describe('diagnosticRequestSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('exige o processo e a descrição da dependência quando keyPersonDependency é "Sim"', () => {
+  it('exige o processo e a descrição da dependência quando keyPersonDependency é "Sim" (modo aprofundado)', () => {
     const invalid = makeValidRequest({
       interviews: [makeValidAreaInterview({ keyPersonDependency: 'Sim', dependencyProcess: '', dependencyDescription: '' })],
     })
     const result = diagnosticRequestSchema.safeParse(invalid)
     expect(result.success).toBe(false)
+  })
+
+  it('não exige processo/descrição da dependência em entrevistas rápidas — essas perguntas não existem no modo rápido', () => {
+    const valid = makeValidQuickRequest({
+      interviews: [makeValidQuickAreaInterview({ keyPersonDependency: 'Sim' })],
+    })
+    const result = diagnosticRequestSchema.safeParse(valid)
+    expect(result.success).toBe(true)
   })
 
   it('exige a descrição do segmento quando segment é "Outro"', () => {
@@ -171,5 +185,38 @@ describe('diagnosticRequestSchema', () => {
     })
     const result = diagnosticRequestSchema.safeParse(valid)
     expect(result.success).toBe(true)
+  })
+})
+
+describe('diagnosticRequestSchema — diagnosticMode (SPEC — Escolha do tipo de diagnóstico)', () => {
+  it('rejeita quando diagnosticMode está ausente ou inválido', () => {
+    const invalid = { ...makeValidRequest(), diagnosticMode: 'invalido' }
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('aceita um diagnóstico rápido válido: uma única área, prioritária, rápida', () => {
+    const result = diagnosticRequestSchema.safeParse(makeValidQuickRequest())
+    expect(result.success).toBe(true)
+  })
+
+  it('rejeita o diagnóstico rápido com mais de uma área', () => {
+    const invalid = makeValidQuickRequest({
+      interviews: [makeValidQuickAreaInterview(), makeValidQuickAreaInterview({ area: 'Atendimento' })],
+    })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita o diagnóstico rápido cuja área não usa a entrevista rápida', () => {
+    const invalid = makeValidQuickRequest({ interviews: [makeValidAreaInterview()] })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
+  })
+
+  it('o diagnóstico completo continua exigindo a primeira área prioritária e aprofundada', () => {
+    const invalid = makeValidRequest({ diagnosticMode: 'complete', interviews: [makeValidQuickAreaInterview()] })
+    const result = diagnosticRequestSchema.safeParse(invalid)
+    expect(result.success).toBe(false)
   })
 })

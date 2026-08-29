@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/ui/Container'
-import type { AreaDepth, AreaInterview, CompanyMap, ContactData, YesNoUnknown } from '@/types/diagnostic'
+import type { AreaDepth, AreaInterview, CompanyMap, ContactData, DiagnosticMode, YesNoUnknown } from '@/types/diagnostic'
 import {
   EMPTY_COMPANY_MAP,
   EMPTY_CONTACT,
@@ -63,8 +63,13 @@ function getPhaseLabel(phase: Phase, interviews: AreaInterview[]): string {
 const GENERIC_ERROR_MESSAGE =
   'Não conseguimos enviar seu diagnóstico. Suas respostas foram preservadas nesta página. Tente novamente.'
 
-export function InterviewWizard() {
+type Props = {
+  diagnosticMode: DiagnosticMode
+}
+
+export function InterviewWizard({ diagnosticMode }: Props) {
   const router = useRouter()
+  const hasSizingStep = diagnosticMode === 'complete'
 
   const [companyMap, setCompanyMap] = useState<CompanyMap>(EMPTY_COMPANY_MAP)
   const [interviews, setInterviews] = useState<AreaInterview[]>([])
@@ -144,7 +149,7 @@ export function InterviewWizard() {
     if (prevPhase.type === 'area-interview') {
       const prevInterview = interviews[prevPhase.areaIndex]
       const applicable = prevInterview ? getApplicableSteps(prevInterview) : []
-      setInterviewStepIndex(applicable.length)
+      setInterviewStepIndex(hasSizingStep ? applicable.length : Math.max(0, applicable.length - 1))
     } else {
       setInterviewStepIndex(0)
     }
@@ -175,7 +180,7 @@ export function InterviewWizard() {
   function handleAreaInterviewNext(areaIndex: number) {
     const interview = interviews[areaIndex]
     const applicableSteps = getApplicableSteps(interview)
-    const isSizingStep = interviewStepIndex >= applicableSteps.length
+    const isSizingStep = hasSizingStep && interviewStepIndex >= applicableSteps.length
 
     if (isSizingStep) {
       const areaErrors = validateAreaInterview(interview)
@@ -194,12 +199,26 @@ export function InterviewWizard() {
       return
     }
     setErrors({})
+
+    const isLastBlockStep = interviewStepIndex + 1 >= applicableSteps.length
+    if (!hasSizingStep && isLastBlockStep) {
+      // Diagnóstico rápido: sem tela de dimensionamento e sem oferecer mais áreas — segue direto ao contato.
+      const areaErrors = validateAreaInterview(interview)
+      if (Object.keys(areaErrors).length > 0) {
+        setErrors(areaErrors)
+        return
+      }
+      goTo({ type: 'contact' })
+      return
+    }
+
     setInterviewStepIndex(interviewStepIndex + 1)
     focusHeading()
   }
 
   async function handleSubmit() {
     const payload = {
+      diagnosticMode,
       company: {
         companyName: companyMap.companyName,
         segment: companyMap.segment,
@@ -277,7 +296,8 @@ export function InterviewWizard() {
         }
         if (phase.ordinal === 0) {
           const newIndex = interviews.length
-          const newInterview = createEmptyAreaInterview(pendingArea, 'PRIORITARIA', 'APROFUNDADA')
+          const depth: AreaDepth = diagnosticMode === 'quick' ? 'RAPIDA' : 'APROFUNDADA'
+          const newInterview = createEmptyAreaInterview(pendingArea, 'PRIORITARIA', depth)
           setInterviews((prev) => [...prev, newInterview])
           setPendingArea('')
           goTo({ type: 'area-interview', areaIndex: newIndex })
@@ -344,7 +364,7 @@ export function InterviewWizard() {
   const isLastPhase = phase.type === 'review'
   const currentInterview = phase.type === 'area-interview' ? interviews[phase.areaIndex] : undefined
   const applicableSteps = currentInterview ? getApplicableSteps(currentInterview) : []
-  const isSizingStep = currentInterview ? interviewStepIndex >= applicableSteps.length : false
+  const isSizingStep = currentInterview ? hasSizingStep && interviewStepIndex >= applicableSteps.length : false
 
   const stepNumber = history.length + 1
   const totalStepsEstimate = isLastPhase ? stepNumber : stepNumber + 3
@@ -376,6 +396,7 @@ export function InterviewWizard() {
       {phase.type === 'select-area' ? (
         <StepSelectArea
           ordinal={phase.ordinal}
+          diagnosticMode={diagnosticMode}
           availableAreas={availableAreasFor(companyMap.areas, interviews)}
           selectedArea={pendingArea}
           onSelect={(area) => {
@@ -430,7 +451,9 @@ export function InterviewWizard() {
 
       {phase.type === 'contact' ? <StepContact data={contact} errors={errors} onChange={updateContact} /> : null}
 
-      {phase.type === 'review' ? <ReviewStep companyMap={companyMap} interviews={interviews} contact={contact} /> : null}
+      {phase.type === 'review' ? (
+        <ReviewStep diagnosticMode={diagnosticMode} companyMap={companyMap} interviews={interviews} contact={contact} />
+      ) : null}
 
       {submitError ? (
         <p role="alert" className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

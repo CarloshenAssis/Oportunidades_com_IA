@@ -1,6 +1,7 @@
-import type { AreaInterview, CompanyMap, ContactData } from '@/types/diagnostic'
+import type { AreaInterview, CompanyMap, ContactData, DiagnosticMode } from '@/types/diagnostic'
 
 type Props = {
+  diagnosticMode: DiagnosticMode
   companyMap: CompanyMap
   interviews: AreaInterview[]
   contact: ContactData
@@ -47,9 +48,15 @@ function Row({ label, value }: { label: string; value?: string }) {
   )
 }
 
-export function ReviewStep({ companyMap, interviews, contact }: Props) {
+export function ReviewStep({ diagnosticMode, companyMap, interviews, contact }: Props) {
   return (
     <div className="flex flex-col gap-8">
+      <div>
+        <span className="inline-flex items-center rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
+          Tipo de diagnóstico: {diagnosticMode === 'quick' ? 'Rápido' : 'Completo'}
+        </span>
+      </div>
+
       <p className="text-sm text-muted">Confira suas respostas antes de enviar. Você pode voltar para corrigir qualquer campo.</p>
 
       <section>

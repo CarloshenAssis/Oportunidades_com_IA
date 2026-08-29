@@ -308,8 +308,17 @@ export type ContactData = {
   consent: boolean
 }
 
+/**
+ * Modo de diagnóstico escolhido na landing page (SPEC — Escolha do tipo de diagnóstico).
+ * "quick": uma única área, entrevista rápida, sem dimensionamento, sem oferecer área 2/3.
+ * "complete": fluxo já existente — área 1 obrigatória e aprofundada, até 2 áreas complementares
+ * opcionais (rápida ou aprofundada), com dimensionamento.
+ */
+export type DiagnosticMode = 'quick' | 'complete'
+
 /** Payload agrupado enviado para POST /api/diagnostico (SPEC V3 §6, §11). */
 export type DiagnosticRequest = {
+  diagnosticMode: DiagnosticMode
   company: {
     companyName: string
     segment: Segment
@@ -319,7 +328,7 @@ export type DiagnosticRequest = {
   }
   /** Todas as áreas existentes na empresa (pool de escolha). */
   areas: string[]
-  /** 1 a 3 entrevistas: a primeira é sempre role="PRIORITARIA", as demais "COMPLEMENTAR". */
+  /** 1 entrevista no modo rápido; 1 a 3 no modo completo — a primeira é sempre role="PRIORITARIA". */
   interviews: AreaInterview[]
   contact: ContactData
 }

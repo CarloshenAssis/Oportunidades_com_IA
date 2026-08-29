@@ -2,6 +2,7 @@ import { Header } from '@/components/landing/Header'
 import { Hero } from '@/components/landing/Hero'
 import { Benefits } from '@/components/landing/Benefits'
 import { HowItWorks } from '@/components/landing/HowItWorks'
+import { ModeSelector } from '@/components/landing/ModeSelector'
 import { CTASection } from '@/components/landing/CTASection'
 import { Footer } from '@/components/landing/Footer'
 
@@ -13,6 +14,7 @@ export default function Home() {
         <Hero />
         <Benefits />
         <HowItWorks />
+        <ModeSelector />
         <CTASection />
       </main>
       <Footer />

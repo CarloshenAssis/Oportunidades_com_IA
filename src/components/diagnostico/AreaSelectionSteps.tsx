@@ -1,6 +1,6 @@
 'use client'
 
-import { YES_NO_UNKNOWN, type AreaDepth, type YesNoUnknown } from '@/types/diagnostic'
+import { YES_NO_UNKNOWN, type AreaDepth, type DiagnosticMode, type YesNoUnknown } from '@/types/diagnostic'
 import { Field, ChoiceCard } from '@/components/ui/FormControls'
 
 const ORDINAL_TITLES = ['a primeira', 'a segunda', 'a terceira']
@@ -8,12 +8,14 @@ const ORDINAL_TITLES = ['a primeira', 'a segunda', 'a terceira']
 /** Tela para escolher qual área será investigada — a primeira é sempre a prioritária (SPEC V3 §4, §10). */
 export function StepSelectArea({
   ordinal,
+  diagnosticMode,
   availableAreas,
   selectedArea,
   onSelect,
   error,
 }: {
   ordinal: number
+  diagnosticMode: DiagnosticMode
   availableAreas: string[]
   selectedArea: string
   onSelect: (area: string) => void
@@ -21,10 +23,12 @@ export function StepSelectArea({
 }) {
   const isFirst = ordinal === 0
   const title = isFirst
-    ? 'Qual área você quer analisar primeiro?'
+    ? 'Qual área você quer analisar?'
     : `Qual será ${ORDINAL_TITLES[ordinal] ?? 'a próxima'} área?`
   const hint = isFirst
-    ? 'Essa é a área prioritária — vamos investigá-la a fundo, com uma entrevista completa.'
+    ? diagnosticMode === 'quick'
+      ? 'Vamos fazer uma entrevista rápida, com as perguntas essenciais sobre essa área.'
+      : 'Essa é a área prioritária — vamos investigá-la a fundo, com uma entrevista completa.'
     : 'Uma área não pode ser escolhida duas vezes — só aparecem aqui as que ainda não foram analisadas.'
 
   return (

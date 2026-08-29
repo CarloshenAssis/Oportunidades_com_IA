@@ -1,13 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { EmailSendError } from '@/lib/email/send'
-import { makeValidRequest } from './fixtures'
+import { makeValidRequest, makeValidQuickRequest } from './fixtures'
 
-const { sendDiagnosticEmailMock } = vi.hoisted(() => ({ sendDiagnosticEmailMock: vi.fn() }))
+const { sendDiagnosticEmailMock, analyzeDiagnosticMock } = vi.hoisted(() => ({
+  sendDiagnosticEmailMock: vi.fn(),
+  analyzeDiagnosticMock: vi.fn(),
+}))
 
 vi.mock('@/lib/email/send', async () => {
   const actual = await vi.importActual<typeof import('@/lib/email/send')>('@/lib/email/send')
   return { ...actual, sendDiagnosticEmail: sendDiagnosticEmailMock }
+})
+
+// Módulo de IA dormente — espiado apenas para provar que o endpoint ativo nunca o chama (SPEC §9.8).
+vi.mock('@/lib/ai/analyze', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/ai/analyze')>('@/lib/ai/analyze')
+  return { ...actual, analyzeDiagnostic: analyzeDiagnosticMock }
 })
 
 const { POST } = await import('@/app/api/diagnostico/route')
@@ -25,6 +34,7 @@ function request(body: unknown, rawBody?: string) {
 
 beforeEach(() => {
   sendDiagnosticEmailMock.mockReset()
+  analyzeDiagnosticMock.mockReset()
 })
 
 describe('POST /api/diagnostico', () => {
@@ -90,5 +100,39 @@ describe('POST /api/diagnostico', () => {
 
     expect(response.status).toBe(502)
     expect(json.error).not.toMatch(/ECONNREFUSED|smtp\.example\.com/)
+  })
+
+  it('modo completo envia corretamente, com o assunto identificando o modo', async () => {
+    sendDiagnosticEmailMock.mockResolvedValueOnce(undefined)
+
+    const response = await POST(request(makeValidRequest({ diagnosticMode: 'complete' })))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.success).toBe(true)
+    const [subject] = sendDiagnosticEmailMock.mock.calls[0]
+    expect(subject).toContain('[Diagnóstico Completo]')
+  })
+
+  it('modo rápido envia corretamente, com o assunto identificando o modo', async () => {
+    sendDiagnosticEmailMock.mockResolvedValueOnce(undefined)
+
+    const response = await POST(request(makeValidQuickRequest()))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.success).toBe(true)
+    const [subject, body] = sendDiagnosticEmailMock.mock.calls[0]
+    expect(subject).toContain('[Diagnóstico Rápido]')
+    expect(body).toContain('DIAGNÓSTICO RÁPIDO')
+  })
+
+  it('nunca chama o módulo de IA (dormente), nem no modo rápido nem no completo', async () => {
+    sendDiagnosticEmailMock.mockResolvedValue(undefined)
+
+    await POST(request(makeValidRequest({ diagnosticMode: 'complete' })))
+    await POST(request(makeValidQuickRequest()))
+
+    expect(analyzeDiagnosticMock).not.toHaveBeenCalled()
   })
 })

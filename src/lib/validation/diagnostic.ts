@@ -186,11 +186,14 @@ export const areaInterviewSchema = z
     quantitativeSizing: quantitativeSizingSchema.optional(),
     hourlyCost: z.number().positive().max(1_000_000).optional(),
   })
-  .refine((data) => data.keyPersonDependency !== 'Sim' || !!data.dependencyProcess?.trim(), {
+  // O desdobramento de "Sim" (Bloco K2) só existe no modo aprofundado — a entrevista rápida
+  // nunca pergunta dependencyProcess/dependencyDescription, então a exigência não pode se
+  // aplicar a respostas rápidas (senão o envio ficaria impossível de validar).
+  .refine((data) => data.depth !== 'APROFUNDADA' || data.keyPersonDependency !== 'Sim' || !!data.dependencyProcess?.trim(), {
     message: 'Descreva qual processo depende dessa pessoa.',
     path: ['dependencyProcess'],
   })
-  .refine((data) => data.keyPersonDependency !== 'Sim' || !!data.dependencyDescription?.trim(), {
+  .refine((data) => data.depth !== 'APROFUNDADA' || data.keyPersonDependency !== 'Sim' || !!data.dependencyDescription?.trim(), {
     message: 'Descreva a dependência.',
     path: ['dependencyDescription'],
   })
@@ -217,6 +220,7 @@ export const contactSchema = z
 
 export const diagnosticRequestSchema = z
   .object({
+    diagnosticMode: z.enum(['quick', 'complete'], { message: 'Selecione o tipo de diagnóstico.' }),
     company: companySchema,
     areas: z.array(requiredText(FIELD_LIMITS.areaName)).min(1, 'Selecione ao menos uma área.'),
     interviews: z
@@ -238,22 +242,40 @@ export const diagnosticRequestSchema = z
     })
 
     const [first, ...rest] = data.interviews
-    if (first && (first.role !== 'PRIORITARIA' || first.depth !== 'APROFUNDADA')) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'A primeira área precisa ser a prioritária, sempre com entrevista aprofundada.',
-        path: ['interviews', 0, 'role'],
-      })
-    }
-    rest.forEach((interview, index) => {
-      if (interview.role !== 'COMPLEMENTAR') {
+
+    if (data.diagnosticMode === 'quick') {
+      if (data.interviews.length !== 1) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Áreas além da primeira precisam ser complementares.',
-          path: ['interviews', index + 1, 'role'],
+          message: 'O diagnóstico rápido tem uma única área.',
+          path: ['interviews'],
         })
       }
-    })
+      if (first && (first.role !== 'PRIORITARIA' || first.depth !== 'RAPIDA')) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A área do diagnóstico rápido precisa usar a entrevista rápida.',
+          path: ['interviews', 0, 'depth'],
+        })
+      }
+    } else {
+      if (first && (first.role !== 'PRIORITARIA' || first.depth !== 'APROFUNDADA')) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A primeira área precisa ser a prioritária, sempre com entrevista aprofundada.',
+          path: ['interviews', 0, 'role'],
+        })
+      }
+      rest.forEach((interview, index) => {
+        if (interview.role !== 'COMPLEMENTAR') {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Áreas além da primeira precisam ser complementares.',
+            path: ['interviews', index + 1, 'role'],
+          })
+        }
+      })
+    }
 
     const areaNames = data.interviews.map((interview) => interview.area)
     const hasDuplicate = areaNames.some((area, index) => areaNames.indexOf(area) !== index)

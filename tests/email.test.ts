@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { buildDiagnosticEmail, buildDiagnosticEmailSubject } from '@/lib/email/template'
-import { makeValidAreaInterview, makeValidComplementaryInterview, makeValidRequest } from './fixtures'
+import { makeValidAreaInterview, makeValidComplementaryInterview, makeValidRequest, makeValidQuickRequest } from './fixtures'
 
 describe('buildDiagnosticEmailSubject', () => {
   it('inclui o nome da empresa no assunto', () => {
     const subject = buildDiagnosticEmailSubject(makeValidRequest())
-    expect(subject).toBe('Novo Diagnóstico de IA — Padaria Bom Pão')
+    expect(subject).toContain('Padaria Bom Pão')
+  })
+
+  it('identifica o modo completo no assunto', () => {
+    const subject = buildDiagnosticEmailSubject(makeValidRequest({ diagnosticMode: 'complete' }))
+    expect(subject).toBe('[Diagnóstico Completo] Nova resposta — Padaria Bom Pão')
+  })
+
+  it('identifica o modo rápido no assunto', () => {
+    const subject = buildDiagnosticEmailSubject(makeValidQuickRequest())
+    expect(subject).toBe('[Diagnóstico Rápido] Nova resposta — Padaria Bom Pão')
   })
 })
 
@@ -88,5 +98,15 @@ describe('buildDiagnosticEmail', () => {
   it('informa que nenhuma tarefa foi escolhida para dimensionar quando o campo é opcional e fica vazio', () => {
     const { text } = buildDiagnosticEmail(makeValidRequest())
     expect(text).toContain('(nenhuma tarefa foi escolhida para dimensionar)')
+  })
+
+  it('identifica o DIAGNÓSTICO COMPLETO em um banner no topo do e-mail', () => {
+    const { text } = buildDiagnosticEmail(makeValidRequest({ diagnosticMode: 'complete' }))
+    expect(text.trim().startsWith('================================\nDIAGNÓSTICO COMPLETO')).toBe(true)
+  })
+
+  it('identifica o DIAGNÓSTICO RÁPIDO em um banner no topo do e-mail', () => {
+    const { text } = buildDiagnosticEmail(makeValidQuickRequest())
+    expect(text.trim().startsWith('================================\nDIAGNÓSTICO RÁPIDO')).toBe(true)
   })
 })
