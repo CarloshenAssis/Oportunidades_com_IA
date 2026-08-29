@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { TRANSFER_FREQUENCY_OPTIONS, YES_NO_UNKNOWN } from '@/types/diagnostic'
 import type { AreaInterview, QuantitativeSizing } from '@/types/diagnostic'
 import type { DimensioningCandidate } from '@/lib/diagnostic/dimensioning'
@@ -20,19 +21,31 @@ const CUSTOM_TASK_VALUE = '__outra__'
 
 export function QuantitativeSizingStep({ candidates, interview, onChange, error }: Props) {
   const sizing: QuantitativeSizing = interview.quantitativeSizing ?? { taskLabel: '' }
-  const isCustomTask = !!sizing.taskLabel && !candidates.some((c) => c.label === sizing.taskLabel)
-  const selectedValue = sizing.taskLabel ? (isCustomTask ? CUSTOM_TASK_VALUE : sizing.taskLabel) : ''
+
+  // O modo de seleção é rastreado explicitamente (em vez de inferido só a partir do
+  // conteúdo de taskLabel) para que "Outra tarefa" possa ser escolhida mesmo antes de
+  // haver qualquer texto digitado — do contrário o rádio nunca aparecia marcado.
+  const [mode, setMode] = useState<'candidate' | 'custom' | 'none'>(() => {
+    if (!sizing.taskLabel) return 'none'
+    return candidates.some((c) => c.label === sizing.taskLabel) ? 'candidate' : 'custom'
+  })
+
+  const selectedValue = mode === 'candidate' ? sizing.taskLabel : mode === 'custom' ? CUSTOM_TASK_VALUE : ''
 
   function updateSizing(patch: Partial<QuantitativeSizing>) {
     onChange({ ...interview, quantitativeSizing: { ...sizing, ...patch } })
   }
 
   function selectCandidate(candidate: DimensioningCandidate) {
+    setMode('candidate')
     updateSizing({ taskLabel: candidate.label, sourceField: candidate.sourceField })
   }
 
   function selectCustomTask() {
-    updateSizing({ taskLabel: isCustomTask ? sizing.taskLabel : '', sourceField: undefined })
+    setMode('custom')
+    if (mode !== 'custom') {
+      updateSizing({ taskLabel: '', sourceField: undefined })
+    }
   }
 
   return (
@@ -67,7 +80,7 @@ export function QuantitativeSizingStep({ candidates, interview, onChange, error 
           <div className="mt-3">
             <TextInput
               id="quantitativeTaskCustom"
-              value={isCustomTask ? sizing.taskLabel : ''}
+              value={sizing.taskLabel}
               onChange={(e) => updateSizing({ taskLabel: e.target.value, sourceField: undefined })}
               placeholder="Descreva a tarefa"
             />
