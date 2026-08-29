@@ -1,4 +1,4 @@
-import { ArrowRight, ShieldCheck } from 'lucide-react'
+import { ArrowRight, ShieldCheck, Zap } from 'lucide-react'
 import { Container } from '@/components/ui/Container'
 import { LinkButton } from '@/components/ui/Button'
 
@@ -20,10 +20,17 @@ export function Hero() {
           minutos.
         </p>
 
-        <LinkButton href="/diagnostico" variant="primary" className="text-lg">
-          Fazer meu diagnóstico
-          <ArrowRight className="h-5 w-5" aria-hidden="true" />
-        </LinkButton>
+        <div className="flex flex-col items-center gap-3 sm:flex-row">
+          <LinkButton href="/diagnostico?mode=quick" variant="outline" className="text-lg">
+            <Zap className="h-5 w-5" aria-hidden="true" />
+            Diagnóstico rápido
+          </LinkButton>
+
+          <LinkButton href="/diagnostico?mode=complete" variant="primary" className="text-lg">
+            Fazer meu diagnóstico
+            <ArrowRight className="h-5 w-5" aria-hidden="true" />
+          </LinkButton>
+        </div>
 
         <p className="text-sm text-muted">Leva de 8 a 15 minutos. Sem cadastro.</p>
       </Container>

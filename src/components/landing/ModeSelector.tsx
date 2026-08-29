@@ -81,7 +81,7 @@ export function ModeSelector() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </LinkButton>
 
-              {badge ? <p className="mt-3 text-center text-xs text-muted">{badge}</p> : null}
+              <p className={`mt-3 text-center text-xs text-muted ${badge ? '' : 'invisible'}`}>{badge ?? 'placeholder'}</p>
             </div>
           ))}
         </div>
