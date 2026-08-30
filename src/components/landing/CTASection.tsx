@@ -16,11 +16,11 @@ export function CTASection() {
         </p>
 
         <LinkButton href="/diagnostico" variant="primary" size="lg" className="mt-2">
-          Fazer meu diagnóstico
+          Quero fazer meu diagnóstico
           <ArrowRight className="h-5 w-5" aria-hidden="true" />
         </LinkButton>
 
-        <p className="text-sm text-muted">Gratuito • Sem compromisso</p>
+        <p className="text-sm text-muted">Gratuito • Sem compromisso • Análise individual</p>
       </Container>
     </section>
   )

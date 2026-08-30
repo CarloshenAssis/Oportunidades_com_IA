@@ -66,7 +66,7 @@ export function Hero() {
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <LinkButton href="/diagnostico" variant="primary" size="lg">
-              Fazer meu diagnóstico
+              Quero fazer meu diagnóstico
               <ArrowRight className="h-5 w-5" aria-hidden="true" />
             </LinkButton>
 

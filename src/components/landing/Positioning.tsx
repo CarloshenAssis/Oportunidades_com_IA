@@ -14,10 +14,13 @@ export function Positioning() {
       <Container>
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">
           <div className="lg:col-span-5">
-            <Eyebrow className="text-blue-400">Posicionamento</Eyebrow>
+            <Eyebrow className="text-blue-400">Método</Eyebrow>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl sm:leading-tight">
-              IA não é a resposta para todos os problemas.
+              Não começamos pela ferramenta.
             </h2>
+            <p className="mt-4 leading-relaxed text-slate-300">
+              Não partimos de uma ferramenta específica procurando um problema para ela resolver.
+            </p>
           </div>
 
           <div className="lg:col-span-7">
@@ -30,8 +33,8 @@ export function Positioning() {
             </ul>
 
             <p className="mt-8 leading-relaxed text-white">
-              O diagnóstico existe justamente para descobrir qual desses caminhos se aplica à sua
-              empresa — antes de investir em qualquer ferramenta.
+              Primeiro entendemos o processo. Depois avaliamos se existe uma oportunidade de
+              melhorar, automatizar, integrar ou utilizar IA.
             </p>
           </div>
         </div>

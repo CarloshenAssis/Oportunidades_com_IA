@@ -23,7 +23,7 @@ const MODES: Mode[] = [
       'Uma avaliação inicial para identificar rapidamente onde pode existir uma oportunidade.',
     scope: 'Uma área da empresa',
     depth: 'Perguntas essenciais',
-    cta: 'Começar diagnóstico rápido',
+    cta: 'Descobrir onde começar',
   },
   {
     href: '/diagnostico?mode=complete',
@@ -33,7 +33,7 @@ const MODES: Mode[] = [
       'Uma investigação mais detalhada dos processos, gargalos e oportunidades da empresa.',
     scope: 'Até três áreas da empresa',
     depth: 'Entrevista aprofundada',
-    cta: 'Começar diagnóstico completo',
+    cta: 'Investigar minha empresa',
     recommended: true,
   },
 ]

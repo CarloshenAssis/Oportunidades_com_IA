@@ -4,31 +4,31 @@ const STEPS = [
   {
     number: '01',
     title: 'Você responde',
-    description: 'Perguntas sobre processos, tarefas, ferramentas e dificuldades do dia a dia.',
+    description: 'Conta como sua empresa trabalha hoje.',
   },
   {
     number: '02',
     title: 'Nós analisamos',
-    description: 'As respostas são lidas e analisadas individualmente, não por um sistema automático.',
+    description: 'As respostas são avaliadas para identificar processos, gargalos e oportunidades.',
   },
   {
     number: '03',
-    title: 'Identificamos oportunidades',
-    description: 'Os pontos encontrados são organizados por relevância para a realidade da empresa.',
+    title: 'Identificamos possibilidades',
+    description: 'IA, automação, integração ou melhorias de processo — somente quando fizerem sentido.',
   },
   {
     number: '04',
     title: 'Entramos em contato',
-    description: 'Apresentamos o que foi identificado e conversamos sobre os caminhos possíveis.',
+    description: 'Se identificarmos uma oportunidade relevante, conversamos com você pelo WhatsApp.',
   },
 ]
 
 export function HowItWorks() {
   return (
-    <Section id="como-funciona">
+    <Section id="como-funciona" surface>
       <SectionHeading
-        eyebrow="Como funciona"
-        title="Quatro etapas, do preenchimento à conversa"
+        eyebrow="Depois do preenchimento"
+        title="O que acontece depois?"
         description="Suas respostas são analisadas individualmente para identificar problemas e oportunidades relevantes para a realidade da sua empresa."
       />
 
@@ -43,8 +43,9 @@ export function HowItWorks() {
       </ol>
 
       <p className="mt-12 max-w-2xl border-l-2 border-border pl-5 leading-relaxed text-muted">
-        O diagnóstico não gera automaticamente uma solução fechada. Ele reúne as informações
-        necessárias para que a análise seja feita depois, com atenção ao contexto da sua empresa.
+        O diagnóstico não gera automaticamente uma solução fechada. Nem todo diagnóstico resulta em
+        uma oportunidade identificada — a análise é feita com atenção ao contexto real da sua
+        empresa.
       </p>
     </Section>
   )

@@ -1,40 +1,33 @@
 import { Section, SectionHeading } from '@/components/ui/Section'
 
-/** A ordem importa: tecnologia é o último item, avaliado só depois de entender o processo. */
+/** Prova de método: os pontos concretos observados nas respostas, sem depoimentos ou números. */
 const SCOPE = [
-  { index: '01', title: 'Processos', description: 'Como o trabalho é realizado hoje.' },
-  { index: '02', title: 'Tempo', description: 'Onde existem tarefas demoradas ou repetitivas.' },
-  { index: '03', title: 'Gargalos', description: 'Onde o processo costuma parar ou gerar retrabalho.' },
-  { index: '04', title: 'Sistemas', description: 'Onde existem informações ou ferramentas desconectadas.' },
-  { index: '05', title: 'Pessoas', description: 'Onde existe dependência de conhecimento individual.' },
+  { title: 'Processos', description: 'Como o trabalho é realizado atualmente.' },
   {
-    index: '06',
-    title: 'Tecnologia',
-    description: 'Onde IA, automação ou integração podem realmente ajudar.',
-    last: true,
+    title: 'Retrabalho',
+    description: 'Onde informações precisam ser conferidas, refeitas ou transferidas manualmente.',
+  },
+  { title: 'Tarefas repetitivas', description: 'Atividades que consomem tempo e seguem padrões.' },
+  { title: 'Gargalos', description: 'Pontos onde o processo costuma parar ou depender de intervenção.' },
+  {
+    title: 'Oportunidades',
+    description: 'Onde uma automação, integração, melhoria de processo ou IA pode fazer sentido.',
   },
 ]
 
 export function AnalysisScope() {
   return (
-    <Section surface>
+    <Section>
       <SectionHeading
         eyebrow="Escopo da análise"
-        title="Como identificamos oportunidades"
-        description="Seis pontos são observados nas suas respostas, sempre nesta ordem — a tecnologia entra por último, depois que o processo está entendido."
+        title="O que procuramos durante a análise"
+        description="Estes são os pontos observados nas suas respostas — a mesma base usada em qualquer diagnóstico, rápido ou completo."
       />
 
-      <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
         {SCOPE.map((item) => (
-          <div key={item.index} className="bg-white p-8">
-            <span
-              className={`font-mono text-xs font-medium tracking-[0.18em] ${
-                item.last ? 'text-accent' : 'text-muted'
-              }`}
-            >
-              {item.index}
-            </span>
-            <h3 className="mt-4 text-base font-semibold text-primary">{item.title}</h3>
+          <div key={item.title} className="bg-white p-6">
+            <h3 className="text-base font-semibold text-primary">{item.title}</h3>
             <p className="mt-2 leading-relaxed text-muted">{item.description}</p>
           </div>
         ))}

@@ -15,12 +15,13 @@ export function About() {
           <div className="rounded-xl border border-border bg-white p-8">
             <p className="text-lg font-semibold text-primary">Carlos Henrique</p>
             <p className="mt-3 leading-relaxed text-muted">
-              Profissional em formação na área de Ciências Contábeis, com atuação e estudos voltados a
-              processos, tecnologia e Inteligência Artificial aplicada a negócios.
+              Profissional em formação na área de Ciências Contábeis, com estudos e projetos voltados
+              a processos, tecnologia e Inteligência Artificial aplicada a negócios.
             </p>
             <p className="mt-4 border-t border-border pt-4 leading-relaxed text-muted">
-              O objetivo é entender primeiro o funcionamento da empresa para só então avaliar onde
-              tecnologia pode gerar valor.
+              O trabalho começa entendendo como a empresa funciona hoje. A partir disso, são
+              identificados gargalos, tarefas repetitivas, retrabalho e situações em que tecnologia
+              pode realmente fazer sentido.
             </p>
           </div>
         </div>
