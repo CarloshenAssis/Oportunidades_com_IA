@@ -11,18 +11,19 @@ type Benefit = {
 const BENEFITS: Benefit[] = [
   {
     icon: Target,
-    title: 'Identifique gargalos',
-    description: 'Encontre processos que consomem tempo e exigem trabalho manual.',
+    title: 'Encontre o que consome tempo',
+    description: 'Identifique tarefas manuais, repetitivas e processos que dependem demais de pessoas.',
   },
   {
     icon: Sparkles,
-    title: 'Encontre oportunidades',
-    description: 'Descubra onde IA ou automação podem fazer sentido.',
+    title: 'Descubra onde existem oportunidades',
+    description:
+      'Suas respostas ajudam a identificar processos que podem merecer investigação para IA, automação ou integração.',
   },
   {
     icon: ListOrdered,
-    title: 'Saiba por onde começar',
-    description: 'Receba uma lista priorizada de oportunidades.',
+    title: 'Entenda por onde começar',
+    description: 'Os pontos identificados são organizados para mostrar quais problemas merecem atenção primeiro.',
   },
 ]
 
@@ -30,6 +31,13 @@ export function Benefits() {
   return (
     <section className="py-20 sm:py-24">
       <Container>
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <h2 className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
+            Você não precisa saber onde colocar IA.
+          </h2>
+          <p className="mt-3 text-muted">O primeiro passo é entender como sua empresa funciona hoje.</p>
+        </div>
+
         <div className="grid gap-8 sm:grid-cols-3">
           {BENEFITS.map(({ icon: Icon, title, description }) => (
             <div

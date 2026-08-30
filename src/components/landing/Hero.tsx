@@ -1,4 +1,4 @@
-import { ArrowRight, ShieldCheck, Zap } from 'lucide-react'
+import { ArrowRight, Zap } from 'lucide-react'
 import { Container } from '@/components/ui/Container'
 import { LinkButton } from '@/components/ui/Button'
 
@@ -6,18 +6,20 @@ export function Hero() {
   return (
     <section className="border-b border-border bg-surface">
       <Container className="flex flex-col items-center gap-8 py-20 text-center sm:py-28">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-1.5 text-sm font-medium text-muted">
-          <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
-          Diagnóstico consultivo, não uma ferramenta genérica de IA
-        </div>
+        <p className="max-w-md text-sm font-medium leading-relaxed text-muted sm:text-base">
+          IA não começa com uma ferramenta.
+          <br />
+          Começa descobrindo onde sua empresa perde tempo.
+        </p>
 
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-primary sm:text-5xl sm:leading-[1.1]">
-          Descubra onde sua empresa pode usar IA
+          Sua empresa provavelmente tem tarefas que poderiam ser automatizadas.
+          <br className="hidden sm:block" /> Você sabe quais são?
         </h1>
 
         <p className="max-w-2xl text-lg leading-relaxed text-muted sm:text-xl">
-          Identifique tarefas repetitivas, processos manuais e oportunidades de automação em poucos
-          minutos.
+          Responda ao diagnóstico e descubra onde existem oportunidades reais para usar IA e
+          automação nos seus processos — sem precisar entender de tecnologia.
         </p>
 
         <div className="flex flex-col items-center gap-3 sm:flex-row">
@@ -27,12 +29,12 @@ export function Hero() {
           </LinkButton>
 
           <LinkButton href="/diagnostico?mode=complete" variant="primary" className="text-lg">
-            Fazer meu diagnóstico
+            Descobrir onde posso aplicar IA
             <ArrowRight className="h-5 w-5" aria-hidden="true" />
           </LinkButton>
         </div>
 
-        <p className="text-sm text-muted">Leva de 8 a 15 minutos. Sem cadastro.</p>
+        <p className="text-sm text-muted">Gratuito • Sem cadastro • Análise individual</p>
       </Container>
     </section>
   )

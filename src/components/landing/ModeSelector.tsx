@@ -18,8 +18,8 @@ const MODES: Mode[] = [
     href: '/diagnostico?mode=quick',
     icon: Gauge,
     eyebrow: 'Diagnóstico rápido',
-    title: 'Quero uma visão rápida',
-    description: 'Responda algumas perguntas essenciais sobre sua empresa e seus processos.',
+    title: 'Quero descobrir onde começar',
+    description: 'Uma análise inicial para identificar os principais pontos de atenção da sua empresa.',
     bullets: [
       'Menos perguntas',
       'Mais rápido de preencher',
@@ -32,8 +32,9 @@ const MODES: Mode[] = [
     href: '/diagnostico?mode=complete',
     icon: Layers,
     eyebrow: 'Diagnóstico completo',
-    title: 'Quero uma análise mais profunda',
-    description: 'Explore um processo da sua empresa com mais detalhes para identificar oportunidades específicas.',
+    title: 'Quero investigar mais a fundo',
+    description:
+      'Uma investigação mais detalhada dos processos para encontrar oportunidades específicas de IA e automação.',
     bullets: [
       'Mais perguntas',
       'Análise aprofundada',

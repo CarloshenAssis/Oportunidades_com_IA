@@ -3,18 +3,19 @@ import { Container } from '@/components/ui/Container'
 const STEPS = [
   {
     number: '01',
-    title: 'Responda ao diagnóstico',
-    description: 'Uma entrevista guiada sobre as áreas, processos e tarefas da sua empresa.',
+    title: 'Você conta como sua empresa funciona',
+    description: 'Responda perguntas sobre processos, tarefas, ferramentas e dificuldades do dia a dia.',
   },
   {
     number: '02',
-    title: 'Um especialista analisa',
-    description: 'Suas respostas são analisadas individualmente para identificar oportunidades reais.',
+    title: 'Suas respostas são analisadas',
+    description: 'Analisamos as informações para identificar problemas, gargalos e possíveis oportunidades.',
   },
   {
     number: '03',
-    title: 'Fale com um especialista',
-    description: 'Entraremos em contato para conversar sobre as oportunidades identificadas.',
+    title: 'Entramos em contato',
+    description:
+      'Depois da análise, entramos em contato para apresentar os pontos identificados e conversar sobre possíveis soluções.',
   },
 ]
 
