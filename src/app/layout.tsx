@@ -12,9 +12,9 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 })
 
-const TITLE = 'Diagnóstico de Oportunidades com IA | Descubra onde sua empresa pode usar IA'
+const TITLE = 'Diagnóstico de Oportunidades com IA | Descubra onde sua empresa perde tempo'
 const DESCRIPTION =
-  'Identifique tarefas repetitivas, processos manuais e oportunidades de aplicação de Inteligência Artificial na sua empresa.'
+  'Um diagnóstico consultivo de processos: identificamos tarefas repetitivas, gargalos e dependências antes de avaliar onde IA, automação ou integração fazem sentido.'
 
 export const metadata: Metadata = {
   title: TITLE,

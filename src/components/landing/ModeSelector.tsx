@@ -1,92 +1,95 @@
-import { ArrowRight, CheckCircle2, Gauge, Layers } from 'lucide-react'
-import { Container } from '@/components/ui/Container'
+import { ArrowRight } from 'lucide-react'
+import { Section, SectionHeading } from '@/components/ui/Section'
 import { LinkButton } from '@/components/ui/Button'
 
 type Mode = {
   href: string
-  icon: typeof Gauge
   eyebrow: string
   title: string
   description: string
-  bullets: string[]
+  /** Escopo real de cada modo — corresponde ao que o formulário efetivamente pergunta. */
+  scope: string
+  depth: string
   cta: string
-  badge?: string
+  recommended?: boolean
 }
 
 const MODES: Mode[] = [
   {
     href: '/diagnostico?mode=quick',
-    icon: Gauge,
     eyebrow: 'Diagnóstico rápido',
-    title: 'Quero descobrir onde começar',
-    description: 'Uma análise inicial para identificar os principais pontos de atenção da sua empresa.',
-    bullets: [
-      'Menos perguntas',
-      'Mais rápido de preencher',
-      'Identifica os principais pontos de atenção',
-      'Ideal para uma primeira análise',
-    ],
+    title: 'Uma primeira leitura da operação',
+    description:
+      'Uma avaliação inicial para identificar rapidamente onde pode existir uma oportunidade.',
+    scope: 'Uma área da empresa',
+    depth: 'Perguntas essenciais',
     cta: 'Começar diagnóstico rápido',
   },
   {
     href: '/diagnostico?mode=complete',
-    icon: Layers,
     eyebrow: 'Diagnóstico completo',
-    title: 'Quero investigar mais a fundo',
+    title: 'Uma investigação dos processos',
     description:
-      'Uma investigação mais detalhada dos processos para encontrar oportunidades específicas de IA e automação.',
-    bullets: [
-      'Mais perguntas',
-      'Análise aprofundada',
-      'Permite investigar até 3 áreas',
-      'Melhor para identificar oportunidades concretas de melhoria',
-    ],
+      'Uma investigação mais detalhada dos processos, gargalos e oportunidades da empresa.',
+    scope: 'Até três áreas da empresa',
+    depth: 'Entrevista aprofundada',
     cta: 'Começar diagnóstico completo',
-    badge: 'Recomendado para uma análise mais detalhada',
+    recommended: true,
   },
 ]
 
 export function ModeSelector() {
   return (
-    <section className="border-y border-border bg-surface py-20 sm:py-24">
-      <Container>
-        <div className="mx-auto mb-12 max-w-2xl text-center">
-          <h2 className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">Como você quer começar?</h2>
-        </div>
+    <Section id="comecar">
+      <SectionHeading
+        eyebrow="Dois caminhos"
+        title="Como você quer começar?"
+        description="Os dois seguem a mesma lógica de análise. A diferença está em quanto do processo você quer detalhar agora."
+        align="center"
+      />
 
-        <div className="grid gap-8 sm:grid-cols-2">
-          {MODES.map(({ href, icon: Icon, eyebrow, title, description, bullets, cta, badge }) => (
-            <div
-              key={href}
-              className="flex flex-col rounded-2xl border border-border bg-white p-8 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
-                <Icon className="h-6 w-6 text-accent" aria-hidden="true" />
-              </div>
-
-              <span className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent">{eyebrow}</span>
-              <h3 className="mb-2 text-xl font-semibold text-primary">{title}</h3>
-              <p className="mb-6 leading-relaxed text-muted">{description}</p>
-
-              <ul className="mb-8 flex flex-1 flex-col gap-2.5">
-                {bullets.map((bullet) => (
-                  <li key={bullet} className="flex items-start gap-2.5 text-sm text-primary">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-                    {bullet}
-                  </li>
-                ))}
-              </ul>
-
-              <LinkButton href={href} variant="primary" className="w-full justify-center">
-                {cta}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </LinkButton>
-
-              <p className={`mt-3 text-center text-xs text-muted ${badge ? '' : 'invisible'}`}>{badge ?? 'placeholder'}</p>
+      <div className="mt-14 grid gap-6 lg:grid-cols-2 lg:gap-8">
+        {MODES.map((mode) => (
+          <div
+            key={mode.href}
+            className="flex flex-col rounded-xl border border-border bg-white p-8 transition-colors hover:border-slate-300 sm:p-10"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <span className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-accent">
+                {mode.eyebrow}
+              </span>
+              {mode.recommended ? (
+                <span className="rounded border border-border px-2 py-1 font-mono text-[0.625rem] uppercase tracking-[0.14em] text-muted">
+                  Recomendado
+                </span>
+              ) : null}
             </div>
-          ))}
-        </div>
-      </Container>
-    </section>
+
+            <h3 className="mt-5 text-xl font-semibold tracking-tight text-primary">{mode.title}</h3>
+            <p className="mt-3 leading-relaxed text-muted">{mode.description}</p>
+
+            <dl className="mt-8 flex-1 space-y-3 border-t border-border pt-6 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted">Abrangência</dt>
+                <dd className="text-right font-medium text-primary">{mode.scope}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted">Profundidade</dt>
+                <dd className="text-right font-medium text-primary">{mode.depth}</dd>
+              </div>
+            </dl>
+
+            <LinkButton
+              href={mode.href}
+              variant={mode.recommended ? 'primary' : 'outline'}
+              className="mt-8 w-full"
+            >
+              {mode.cta}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </LinkButton>
+          </div>
+        ))}
+      </div>
+    </Section>
   )
 }
